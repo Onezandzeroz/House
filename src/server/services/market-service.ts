@@ -1,7 +1,7 @@
 import type { Mark } from "../domain/book";
 import { MarkKind } from "../domain/book";
 import { HouseError } from "../domain/errors";
-import { fetchLivePrices } from "../lib/coingecko-client";
+import { fetchAggregatedPrices } from "../lib/price-aggregator";
 import { referencePrice } from "../lib/reference-prices";
 import type { AsyncResult, ServiceInfo } from "./types";
 import { ServiceHealth } from "./types";
@@ -103,7 +103,7 @@ export class CoingeckoMarketService implements MarketService {
     _bookCurrency: string,
   ): AsyncResult<Mark> {
     try {
-      const { prices, source } = await fetchLivePrices();
+      const { prices, source } = await fetchAggregatedPrices();
       const key = assetId.toLowerCase();
       const livePrice = prices[key];
 

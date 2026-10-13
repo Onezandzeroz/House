@@ -37,6 +37,7 @@ import type {
 import { SLEEVE_META } from "@/components/onboarding/types";
 import { categorizeAsset, type RiskCategory } from "@/server/domain/bankroll";
 import { LivePriceBadge } from "./live-price-badge";
+import { AlertTriangle, ShieldCheck, Radio, Activity } from "lucide-react";
 
 /**
  * PositionsTable (Task 38) — a detailed, sortable table view of every
@@ -300,7 +301,10 @@ export function PositionsTable() {
                         )}
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs house-num text-foreground">
-                        ${formatMoney(row.price)}
+                        <span className="inline-flex items-center gap-1">
+                          <PriceSourceIndicator row={row} />
+                          ${formatMoney(row.price)}
+                        </span>
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs house-num text-primary">
                         ${formatMoney(row.value)}
@@ -400,11 +404,16 @@ interface FlatRow {
   value: string;
   weightBps: number;
   source: "live" | "fallback";
-  /**
-   * Entry price per unit (book currency). Null when the asset is a
-   * stablecoin (stables are $1.00 by definition so no entry is collected)
-   * or when the trustee didn't provide one during onboarding (Task 57).
-   */
+  /** Price source tier ("ftso" | "ccxt" | "coingecko" | "reference-*").
+   *  Undefined for backward compat with pre-aggregator responses. */
+  priceSource?: string;
+  /** Confidence: "high" | "medium" | "low" | "fallback". */
+  priceConfidence?: string;
+  /** True if this asset fell back to hardcoded reference prices. */
+  priceIsFallback?: boolean;
+  /** Entry price per unit (book currency). Null when the asset is a
+   *  stablecoin (stables are $1.00 by definition so no entry is collected)
+   *  or when the trustee didn't provide one during onboarding (Task 57). */
   entryPrice: string | null;
 }
 
@@ -434,6 +443,9 @@ function flattenPositions(snapshot: PortfolioSnapshot): FlatRow[] {
           value: venue.value,
           weightBps: venue.weightBps,
           source,
+          priceSource: asset.priceSource,
+          priceConfidence: asset.priceConfidence,
+          priceIsFallback: asset.priceIsFallback,
           entryPrice: assetEntry,
         });
       }
@@ -629,5 +641,114 @@ function PositionsTableSkeleton() {
         </div>
       ))}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PriceSourceIndicator — a tiny icon + tooltip next to each row's price
+// showing where the price came from (FTSO / CCXT / CoinGecko / reference)
+// and warning when it's a fallback (hardcoded reference price = uncertainty).
+// ---------------------------------------------------------------------------
+
+/** Short label for each source tier (shown in the tooltip). */
+const PRICE_SOURCE_SHORT: Record<string, string> = {
+  ftso: "FTSO",
+  ccxt: "CCXT",
+  coingecko: "CoinGecko",
+  "reference-fallback": "Ref (live down)",
+  "reference-prices-v0": "Reference",
+  "reference-prices-v0-fallback": "Ref $1.00",
+};
+
+function PriceSourceIndicator({ row }: { row: FlatRow }) {
+  // No price-source data (pre-aggregator response) — render nothing.
+  if (!row.priceSource) return null;
+
+  const isFallback = row.priceIsFallback === true;
+  const isLowConfidence = row.priceConfidence === "low";
+  const label = PRICE_SOURCE_SHORT[row.priceSource] ?? row.priceSource;
+
+  // Fallback (hardcoded reference) → amber warning triangle.
+  if (isFallback) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className="inline-flex shrink-0"
+            aria-label={`Price source: ${label} (fallback — hardcoded reference price)`}
+          >
+            <AlertTriangle className="size-3 text-warn-foreground" aria-hidden />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[16rem]">
+          <p className="flex items-start gap-1.5 text-xs leading-snug">
+            <AlertTriangle className="mt-0.5 size-3 shrink-0 text-warn-foreground" aria-hidden />
+            <span>
+              <strong>{label}</strong> — hardcoded reference price.
+              All live sources failed for this asset; the price is a
+              static Oct 2026 value. NAV for this row is uncertain.
+            </span>
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  // Low confidence (divergence > 2%) → amber warning.
+  if (isLowConfidence) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className="inline-flex shrink-0"
+            aria-label={`Price source: ${label} (low confidence — sources diverge >2%)`}
+          >
+            <AlertTriangle className="size-3 text-warn-foreground" aria-hidden />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[16rem]">
+          <p className="flex items-start gap-1.5 text-xs leading-snug">
+            <AlertTriangle className="mt-0.5 size-3 shrink-0 text-warn-foreground" aria-hidden />
+            <span>
+              <strong>{label}</strong> — sources diverge &gt;2%. The
+              primary source was used, but FTSO/CCXT/CoinGecko disagree
+              significantly. Investigate before acting.
+            </span>
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  // Live source, good confidence — show a small source-specific icon.
+  const Icon = row.priceSource === "ftso" ? Radio : row.priceSource === "ccxt" ? Activity : ShieldCheck;
+  const color = row.priceSource === "ftso"
+    ? "text-primary"
+    : row.priceSource === "ccxt"
+      ? "text-allow-foreground"
+      : "text-muted-foreground";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={`inline-flex shrink-0 ${color}`}
+          aria-label={`Price source: ${label}`}
+        >
+          <Icon className="size-3" aria-hidden />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[16rem]">
+        <p className="text-xs leading-snug">
+          <strong>{label}</strong> — live price from{" "}
+          {row.priceSource === "ftso"
+            ? "Flare's on-chain oracle"
+            : row.priceSource === "ccxt"
+              ? "the exchange (Bybit)"
+              : "CoinGecko aggregator"}
+          .
+        </p>
+      </TooltipContent>
+    </Tooltip>
   );
 }

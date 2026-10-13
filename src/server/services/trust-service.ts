@@ -42,7 +42,7 @@ import {
   type EthicsToggles,
 } from "../domain/ethics";
 import { referencePrice } from "../lib/reference-prices";
-import { fetchLivePrices } from "../lib/coingecko-client";
+import { fetchAggregatedPrices, type AssetPriceDetail, type PriceAggregationSummary } from "../lib/price-aggregator";
 import type { AsyncResult } from "./types";
 import { HouseError } from "../domain/errors";
 
@@ -215,6 +215,15 @@ export interface PortfolioSnapshotAsset {
   /** Liste over venues hvor dette aktivumet holdes. Ett element per
    *  unik (account.venue, account.kind). */
   venues: PortfolioSnapshotVenue[];
+  /** Price source for this asset (e.g. "ftso", "ccxt", "coingecko",
+   *  "reference-fallback"). Undefined for backward compatibility. */
+  priceSource?: string;
+  /** Confidence level: "high" | "medium" | "low" | "fallback".
+   *  Undefined for backward compatibility. */
+  priceConfidence?: string;
+  /** True if this asset's price came from the hardcoded reference
+   *  fallback (increases uncertainty). Undefined for backward compat. */
+  priceIsFallback?: boolean;
 }
 
 /**
@@ -268,6 +277,11 @@ export interface PortfolioSnapshot {
   positionsCount: number;
   priceSource: "live" | "fallback";
   asOf: Date;
+  /** NEW: per-asset price source detail (keyed by lowercase assetId).
+   *  Undefined for backward compatibility (pre-aggregator responses). */
+  priceDetails?: Record<string, AssetPriceDetail>;
+  /** NEW: aggregate price-quality summary for the data-quality badge. */
+  priceSummary?: PriceAggregationSummary;
 }
 
 /**
@@ -1176,7 +1190,7 @@ export class PrismaTrustService implements TrustService {
       // på tvers av samtidige kall). Hvis CoinGecko er nede / ratelimited
       // returneres REFERENCE_PRICES med source="fallback" — vi fortsetter
       // uansett; UI-en viser Live-pulse ELLER Fallback-badge (Task 38).
-      const livePrices = await fetchLivePrices();
+      const livePrices = await fetchAggregatedPrices();
 
       // Index accounts by id so we can resolve venue for orphan positions
       // (Position.accountId satt men Account-relasjonen ikke populert).
@@ -1207,6 +1221,9 @@ export class PrismaTrustService implements TrustService {
             price: number;
             known: boolean;
             entryPrice: string | null;
+            priceSource?: string;
+            priceConfidence?: string;
+            priceIsFallback?: boolean;
           }
         >
       > = {
@@ -1257,6 +1274,7 @@ export class PrismaTrustService implements TrustService {
         const sleeveBucket = sleeveByCat[category];
         let assetBucket = sleeveBucket.get(p.assetId);
         if (!assetBucket) {
+          const detail = livePrices.details[key];
           assetBucket = {
             venueByVenueKey: new Map(),
             quantitySum: 0,
@@ -1264,6 +1282,9 @@ export class PrismaTrustService implements TrustService {
             price,
             known: ref.known,
             entryPrice: p.entryPrice ?? null,
+            priceSource: detail?.source,
+            priceConfidence: detail?.confidence,
+            priceIsFallback: detail?.isFallback,
           };
           sleeveBucket.set(p.assetId, assetBucket);
         }
@@ -1352,6 +1373,9 @@ export class PrismaTrustService implements TrustService {
                 weightBps,
                 entryPrice: a.entryPrice ?? null,
                 venues,
+                priceSource: a.priceSource,
+                priceConfidence: a.priceConfidence,
+                priceIsFallback: a.priceIsFallback,
               };
             },
           );
@@ -1380,6 +1404,8 @@ export class PrismaTrustService implements TrustService {
         positionsCount: positions.length,
         priceSource: livePrices.source,
         asOf: new Date(),
+        priceDetails: livePrices.details,
+        priceSummary: livePrices.summary,
       };
       return { ok: true, value: snapshot };
     } catch (err) {
@@ -1769,7 +1795,7 @@ export class PrismaTrustService implements TrustService {
       // Hent live-priser ÉN gang før transaksjonen (utenfor tx fordi
       // fetchLivePrices har modul-cache + dedup; å pakke den inni tx ville
       // holdt transaksjonen åpen under nettverks-IOen).
-      const livePrices = await fetchLivePrices();
+      const livePrices = await fetchAggregatedPrices();
 
       const created = await db.$transaction(async (tx) => {
         // 1. Hent book + posisjoner (med account for venue-resolve,

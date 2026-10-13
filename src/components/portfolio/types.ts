@@ -544,6 +544,13 @@ export interface PortfolioSnapshotAsset {
    *  asset. One entry per unique (account.venue, account.kind). Empty
    *  in the AdvisoryOpinion-path (only the snapshot path populates it). */
   venues: PortfolioSnapshotVenue[];
+  /** Price source tier (e.g. "ftso", "ccxt", "coingecko", "reference-fallback").
+   *  Undefined for backward compatibility with pre-aggregator responses. */
+  priceSource?: string;
+  /** Confidence level: "high" | "medium" | "low" | "fallback". */
+  priceConfidence?: string;
+  /** True if this asset fell back to hardcoded reference prices. */
+  priceIsFallback?: boolean;
 }
 
 export interface PortfolioSnapshotSleeve {

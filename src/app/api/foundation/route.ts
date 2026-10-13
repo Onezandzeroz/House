@@ -43,9 +43,9 @@ import * as Services from "@/server/services";
 // Live price source — Task 36. Foundation surfaces `priceSource` so the
 // dashboard (Task 38) can render a Live-pulse vs Fallback-badge.
 import {
-  fetchLivePrices,
-  getLivePriceCacheState,
-} from "@/server/lib/coingecko-client";
+  fetchAggregatedPrices,
+  getAggregatedCacheState,
+} from "@/server/lib/price-aggregator";
 import { getAuthUserId } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
@@ -458,12 +458,13 @@ export type FoundationStatus = typeof foundation;
  * badge — full architecture internals are not leaked to anonymous
  * requests. */
 async function minimalFoundation() {
-  const live = await fetchLivePrices();
-  const cacheState = getLivePriceCacheState();
+  const live = await fetchAggregatedPrices();
+  const cacheState = getAggregatedCacheState();
   const market = {
     priceSource: live.source,
     fetchedAt: live.fetchedAt,
     cacheExpiresAt: cacheState?.expiresAt ?? null,
+    priceSummary: live.summary,
   };
   return { authenticated: false as boolean, market };
 }
@@ -485,12 +486,13 @@ export async function GET() {
   // dedup) so this is cheap to call on every foundation fetch. If
   // CoinGecko is down, source="fallback" — the dashboard still renders,
   // it just shows a Fallback badge instead of a Live-pulse.
-  const live = await fetchLivePrices();
-  const cacheState = getLivePriceCacheState();
+  const live = await fetchAggregatedPrices();
+  const cacheState = getAggregatedCacheState();
   const market = {
     priceSource: live.source,
     fetchedAt: live.fetchedAt,
     cacheExpiresAt: cacheState?.expiresAt ?? null,
+    priceSummary: live.summary,
   };
   const payload = { ...foundation, authenticated: true, market };
   return NextResponse.json(payload, {

@@ -19,7 +19,8 @@ import type { RegimeMark } from "../services/regime-detector";
 
 import type { TrustWithRelations } from "../services/trust-service";
 import { referencePrice } from "./reference-prices";
-import { fetchLivePrices } from "./coingecko-client";
+import { fetchAggregatedPrices } from "./price-aggregator";
+import { fetchOhlcvHistory } from "./ccxt-client";
 
 /**
  * Bridge fra Trust (Prisma) → advisory-input (BookState + Mandate +
@@ -61,6 +62,36 @@ export interface AdvisoryInput {
    * REFERENCE_PRICES. Advisory-ruten propagerer dette til /api/advisory
    * så UI-en (Task 38) kan vise Live-pulse vs Fallback-badge. */
   priceSource: "live" | "fallback";
+}
+
+/**
+ * Fetch OHLCV history for an asset, with graceful fallback to the
+ * hardcoded reference history. Used by `buildAdvisoryInputFromTrust` so
+ * the regime detector (SMA-200, drawdown, realised vol) runs on real
+ * market data when CCXT is available, and on the 7-sample hardcoded
+ * history when it's not (e.g. CCXT down, or the asset isn't listed).
+ *
+ * Never throws — returns the hardcoded history on any failure.
+ */
+async function getRegimeHistory(
+  assetId: string,
+): Promise<{ t: Date; price: string }[] | undefined> {
+  const id = assetId.toLowerCase();
+  // Only fetch OHLCV for assets that have a hardcoded fallback (BTC, ETH).
+  // Other assets don't have a reference history to fall back to, and the
+  // regime detector handles `history: undefined` gracefully.
+  if (id !== "btc" && id !== "eth") return undefined;
+  try {
+    // Fetch 200 daily candles for SMA-200. Cached 1h in ccxt-client.
+    const live = await fetchOhlcvHistory(assetId, 200);
+    if (live && live.length >= 7) {
+      return live;
+    }
+  } catch {
+    // Fall through to hardcoded history.
+  }
+  // Fallback to the hardcoded reference history.
+  return id === "btc" ? BTC_REFERENCE_HISTORY : ETH_REFERENCE_HISTORY;
 }
 
 /**
@@ -123,7 +154,7 @@ export async function buildAdvisoryInputFromTrust(
   // Hent live priser ÉN gang (modul-cache deler på tvers av samtidige
   // kall). Hvis CoinGecko er nede, returneres REFERENCE_PRICES med
   // source="fallback" — vi fortsetter uansett.
-  const livePrices = await fetchLivePrices();
+  const livePrices = await fetchAggregatedPrices();
 
   const now = new Date();
   const bookId = book.id;
@@ -207,12 +238,7 @@ export async function buildAdvisoryInputFromTrust(
       observedAt: now,
       createdAt: now,
     };
-    const history =
-      p.assetId.toLowerCase() === "btc"
-        ? BTC_REFERENCE_HISTORY
-        : p.assetId.toLowerCase() === "eth"
-          ? ETH_REFERENCE_HISTORY
-          : undefined;
+    const history = await getRegimeHistory(p.assetId);
     regimeMarks.push({
       assetId: p.assetId,
       price: priceStr,
