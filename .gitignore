@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+
+# Environment
+.env
+.env*.local
+
+# Database
+db/
+*.db
+*.db-journal
+
+# Logs
+*.log
+dev.log
+
+# Debug
+.DS_Store
+*.pem
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Vercel
+.vercel
+
+# Workspace artifacts (not part of the app)
+upload/
+download/
+agent-ctx/
+tool-results/
+screenshots/
+skills/
+mini-services/
+examples/
+tests/
+.zscripts/
+worklog.md
+Caddyfile

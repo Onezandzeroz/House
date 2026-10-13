@@ -1,0 +1,526 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   House — Modern dark-mode design system (Task 19)
+   ------------------------------------------------------------
+   Owner direction: "I want the colour theme more modern."
+
+   Modernization goals:
+   1. Glassmorphism — cards are "frosted glass" with backdrop-blur
+      and a subtle white tint (Linear / Vercel / Robinhood style).
+   2. Two-accent system — emerald is the new action color (buttons,
+      active states, KPI growth, AI "advisor" role); champagne-gold
+      is KEPT for hero numerals (NAV, dry powder %, house edge bps)
+      and the House wordmark — gold now reads as "valuation".
+   3. AI operator state — magenta/rose glow + pulse animation when
+      the AI is operating (House mode).
+   4. Subtle radial background gradient — emerald at the top, faint
+      gold to the right, for depth instead of flat near-black.
+   5. Gradient borders/glows on hover.
+   6. Vibrant status colors — emerald (allow), amber (warn), rose
+      (reject). Modern, not Vegas.
+
+   Backward compatibility:
+   - Every existing token NAME is preserved (bg-card, text-primary,
+     bg-allow/10, text-allow-foreground, border-border, etc.) — only
+     the VALUES change. This means existing components (advisory,
+     architecture, portfolio, house) automatically inherit the
+     modern expression without code changes.
+   - `--primary` STAYS champagne-gold (#c9a227) so hero numerals
+     that use `text-primary` (NAV, dry powder %, house edge bps,
+     regime name, House wordmark) remain gold.
+   - Emerald is introduced as `--accent` (action) and `--success`
+     (positive KPIs / healthy) — NEW tokens, additive only.
+   - Rose `--operator` is a NEW token for the AI-operator-active
+     state; the existing `text-primary` Operator role in
+     ai-operator-panel.tsx + trust-header-strip.tsx is flagged for
+     Task 20/21 to migrate to `text-operator` + `.house-pulse-operator`.
+
+   No indigo. No blue. The accents are gold (valuation) + emerald
+   (action) + rose (operator-live / reject). The House always has
+   the edge — modern, not vulgar.
+   ============================================================ */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-serif);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* Advisory status palette — used by Opportunity / Warning / Regime chips.
+     Modernized to vibrant emerald / amber / rose. */
+  --color-allow: var(--allow);
+  --color-allow-foreground: var(--allow-foreground);
+  --color-warn: var(--warn);
+  --color-warn-foreground: var(--warn-foreground);
+  --color-reject: var(--reject);
+  --color-reject-foreground: var(--reject-foreground);
+
+  /* NEW — gold alias (kept for hero numerals / House wordmark) */
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+
+  /* NEW — emerald success / action-alias for positive KPI states */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+
+  /* NEW — magenta/rose AI-operator-active state */
+  --color-operator: var(--operator);
+  --color-operator-foreground: var(--operator-foreground);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* Unified palette — applied to both :root and .dark so the experience
+   is consistent before AND after the .dark class lands on <html>.
+   shadcn dark: variants resolve through .dark; bare utilities resolve
+   through :root. Both point at the same modern values. */
+:root,
+.dark {
+  --radius: 0.75rem; /* slightly larger, more modern than 0.5rem */
+
+  /* Background — deep near-black with a subtle blue-violet tint
+     for depth (not flat, not warm). Modern fintech dark surface. */
+  --background: #060708;
+  --foreground: #fafafa;
+
+  /* Card — GLASS: subtle white tint, not flat dark. The actual
+     backdrop-blur is applied via the [data-slot="card"] rule in
+     @layer base (so all shadcn Cards inherit glassmorphism by
+     default) and via the .house-glass utility for custom surfaces. */
+  --card: rgba(255, 255, 255, 0.025);
+  --card-foreground: #fafafa;
+
+  /* Popover — slightly more opaque so dropdowns stay legible. */
+  --popover: rgba(10, 11, 13, 0.92);
+  --popover-foreground: #fafafa;
+
+  /* Primary — champagne gold KEPT (per owner direction + Task 10
+     learning: oklch(0.86 0.11 80) clips to white in sRGB; hex keeps
+     the metallic gold). Used for hero numerals (NAV, dry powder %,
+     house edge bps), the House wordmark, and "the House's edge"
+     metaphor. */
+  --primary: #c9a227;
+  --primary-foreground: #14110d;
+
+  /* Gold alias — explicit name so Task 20/21 can swap text-primary
+     → text-gold on hero numerals without ambiguity. Same value. */
+  --gold: #c9a227;
+  --gold-foreground: #14110d;
+
+  /* Secondary — glass-tinted surface for nested panels. */
+  --secondary: rgba(255, 255, 255, 0.04);
+  --secondary-foreground: #fafafa;
+
+  /* Muted — slightly elevated text contrast for modern dark UIs. */
+  --muted: rgba(255, 255, 255, 0.03);
+  --muted-foreground: #a1a1aa;
+
+  /* Accent — EMERALD. The new action color (buttons, active states,
+     KPI growth, AI "advisor" role). Replaces gold-as-action so gold
+     can be reserved for valuation. */
+  --accent: #10b981;
+  --accent-foreground: #022c22;
+
+  /* Success — alias for emerald. Same value as accent; exists so
+     semantic "positive" states (healthy / above-target) can be
+     tokenized distinctly from "action" states. */
+  --success: #10b981;
+  --success-foreground: #022c22;
+
+  /* Destructive — vibrant rose (modern, not muted). */
+  --destructive: #f43f5e;
+  --destructive-foreground: #fafafa;
+
+  /* Operator — magenta/rose glow for the "AI is operating" live
+     state (House mode). Visually distinct from destructive because
+     it is paired with .house-pulse-operator + a softer rose-tinted
+     border, never the destructive rose fill. */
+  --operator: #f43f5e;
+  --operator-foreground: #fafafa;
+
+  /* Borders — subtle white-tinted (modern glass edge). Per-component
+     hover borders switch to emerald (see .house-glow-hover). */
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #10b981;
+
+  /* Advisory status palette — modernized to vibrant emerald / amber
+     / rose. Foreground values are the saturated hex; surface values
+     are 12% alpha so chips read as "tinted glass" instead of opaque
+     painted blocks. */
+  --allow: rgba(16, 185, 129, 0.12);
+  --allow-foreground: #10b981;
+  --warn: rgba(245, 158, 11, 0.12);
+  --warn-foreground: #f59e0b;
+  --reject: rgba(244, 63, 94, 0.12);
+  --reject-foreground: #f43f5e;
+
+  /* Chart palette — emerald + gold + complementary muted tones.
+     Emerald is primary (chart-1) so KPI growth reads as action;
+     gold is secondary (chart-2) so valuation reads as the
+     House's edge. */
+  --chart-1: #10b981; /* emerald — primary */
+  --chart-2: #c9a227; /* gold — secondary */
+  --chart-3: #14b8a6; /* teal — tertiary */
+  --chart-4: #f59e0b; /* amber */
+  --chart-5: #f43f5e; /* rose */
+
+  /* Sidebar mirrors card — glass-tinted, emerald primary. */
+  --sidebar: rgba(255, 255, 255, 0.02);
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #10b981;
+  --sidebar-primary-foreground: #022c22;
+  --sidebar-accent: rgba(255, 255, 255, 0.04);
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #10b981;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+    /* Tabular numerals so book values align in tables. */
+    font-variant-numeric: tabular-nums;
+
+    /* Subtle background radial glow — emerald at the top + faint
+       gold to the upper-right. Gives the page depth instead of a
+       flat near-black. background-attachment: fixed so the glow
+       stays anchored to the viewport as the user scrolls. */
+    background:
+      radial-gradient(
+        ellipse 80% 50% at 50% 0%,
+        rgba(16, 185, 129, 0.06),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 80% 20%,
+        rgba(201, 162, 39, 0.04),
+        transparent 60%
+      ),
+      var(--background);
+    background-attachment: fixed;
+  }
+
+  /* Glassmorphism by default for shadcn Cards — the [data-slot="card"]
+     attribute is set by every shadcn Card root. Applying
+     backdrop-filter here means every Card automatically becomes
+     "frosted glass" without needing the .house-glass utility.
+     The subtle white tint comes from --card (rgba(255,255,255,0.025)). */
+  [data-slot="card"] {
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+  }
+
+  /* Headings use the serif by default — exclusive look preserved. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-serif), ui-serif, Georgia, serif;
+    letter-spacing: -0.01em;
+  }
+
+  /* Modern scrollbar — emerald-tint instead of gold (modernized).
+     Same hairline width / radius as before. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(16, 185, 129, 0.18);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(16, 185, 129, 0.32);
+    background-clip: padding-box;
+  }
+
+  /* Selection — emerald (modern action color). */
+  ::selection {
+    background: rgba(16, 185, 129, 0.3);
+    color: #fafafa;
+  }
+
+  /* Focus ring — emerald (modern action color). */
+  :focus-visible {
+    outline-color: rgba(16, 185, 129, 0.7);
+  }
+}
+
+@layer utilities {
+  /* --------------------------------------------------------------------
+     Existing utilities — preserved for backward compatibility.
+     Every existing component (advisory, architecture, portfolio, house)
+     uses these. Modernized from oklch → hex per Task 10 learning.
+     -------------------------------------------------------------------- */
+
+  /* A hairline emerald-tinted rule for separating sections. Thinner
+     than border-t, more modern than the gold-tinted original. */
+  .house-hairline {
+    background: linear-gradient(
+      to right,
+      transparent,
+      rgba(16, 185, 129, 0.2),
+      transparent
+    );
+    height: 1px;
+  }
+
+  /* A subtle radial emerald glow at the top of the page header —
+     modernized from gold to emerald so the header reads as the
+     "action surface". Kept under the same name so page.tsx's
+     `header className="house-glow"` keeps working. */
+  .house-glow {
+    background: radial-gradient(
+      ellipse 60% 40% at 50% 0%,
+      rgba(16, 185, 129, 0.07),
+      transparent 70%
+    );
+  }
+
+  /* Tabular numbers utility — for NAV / weights / bps columns. */
+  .house-num {
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+  }
+
+  /* Metallic gold glow for hero numerals (NAV, dry powder %, house
+     edge, regime name). `--primary` stays gold, so the glow stays
+     gold. The selectors target `.text-primary.house-num` and
+     `h1/h2/h3.text-primary` so the glow applies ONLY to gold
+     hero numerals — never to emerald action text. */
+  .house-num-accent,
+  .text-primary.house-num,
+  h1.text-primary,
+  h2.text-primary,
+  h3.text-primary {
+    text-shadow:
+      0 0 1px rgba(201, 162, 39, 0.4),
+      0 1px 2px rgba(201, 162, 39, 0.18);
+  }
+
+  /* --------------------------------------------------------------------
+     NEW — Glassmorphism utilities.
+     -------------------------------------------------------------------- */
+
+  /* Glassmorphism card — frosted glass with subtle border + emerald
+     hover glow. Use on custom surfaces that are NOT shadcn Cards
+     (shadcn Cards get backdrop-blur automatically via the
+     [data-slot="card"] base rule). */
+  .house-glass {
+    background: rgba(255, 255, 255, 0.025);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition:
+      border-color 200ms ease,
+      background 200ms ease,
+      transform 200ms ease;
+  }
+  .house-glass:hover {
+    border-color: rgba(16, 185, 129, 0.25);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  /* Stronger glass for prominent cards (hero, pie chart container).
+     Higher opacity + heavier blur so the surface reads as a
+     "weightier" panel. */
+  .house-glass-strong {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* --------------------------------------------------------------------
+     NEW — Gradient utilities.
+     -------------------------------------------------------------------- */
+
+  /* Emerald gradient — for action buttons, active states, KPI
+     growth bars. */
+  .house-gradient-emerald {
+    background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+  }
+
+  /* Gold gradient — for hero numeral surfaces if needed (rare; the
+     default is solid gold with metallic glow via .house-num-accent). */
+  .house-gradient-gold {
+    background: linear-gradient(135deg, #c9a227 0%, #d4af37 100%);
+  }
+
+  /* Page-level background radial glow — emerald at the top + faint
+     gold to the right. Use on a wrapper div when you want the glow
+     scoped to a section (the body already has its own glow via
+     @layer base). */
+  .house-bg-glow {
+    background:
+      radial-gradient(
+        ellipse 80% 50% at 50% 0%,
+        rgba(16, 185, 129, 0.06),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 80% 20%,
+        rgba(201, 162, 39, 0.04),
+        transparent 60%
+      );
+  }
+
+  /* Gradient text — for hero numerals when you want a metallic gold
+     gradient fill instead of the solid gold + text-shadow. Use
+     sparingly; the default hero treatment is .house-num.text-primary
+     + .house-num-accent. */
+  .house-text-gradient-gold {
+    background: linear-gradient(135deg, #d4af37 0%, #c9a227 50%, #b8860b 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  /* --------------------------------------------------------------------
+     NEW — Glow + pulse utilities.
+     -------------------------------------------------------------------- */
+
+  /* Pulsing rose glow for the AI-operator-active "live" state
+     (House mode ON). Apply to the operator-role label / chip /
+     panel border. The animation is a soft expanding ring — modern
+     "live" indicator, never Vegas. */
+  @keyframes house-pulse-operator {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.4);
+    }
+    50% {
+      box-shadow: 0 0 0 8px rgba(244, 63, 94, 0);
+    }
+  }
+  .house-pulse-operator {
+    animation: house-pulse-operator 2s ease-in-out infinite;
+  }
+
+  /* Pulsing emerald glow for positive / healthy states (above-target
+     dry powder, allow verdicts, "healthy" KPIs). Slower than the
+     operator pulse — reads as "alive and well" rather than "live
+     and at risk". */
+  @keyframes house-pulse-emerald {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+    }
+  }
+  .house-pulse-emerald {
+    animation: house-pulse-emerald 3s ease-in-out infinite;
+  }
+
+  /* Subtle border-glow on hover for interactive cards. Adds an
+     emerald-tinted 1px outer ring + a soft emerald drop shadow so
+     hoverable cards "lift" slightly. */
+  .house-glow-hover {
+    transition:
+      box-shadow 250ms ease,
+      border-color 250ms ease;
+  }
+  .house-glow-hover:hover {
+    box-shadow:
+      0 0 0 1px rgba(16, 185, 129, 0.2),
+      0 8px 32px rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.25);
+  }
+
+  /* --------------------------------------------------------------------
+     NEW — Shimmer for loading states.
+     -------------------------------------------------------------------- */
+
+  /* Animated shimmer — a soft white-tinted sweep across a skeleton
+     surface. Use on placeholder surfaces while data loads. The
+     sweep is slow (1.8s) so it does not feel busy. */
+  @keyframes house-shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+  .house-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
+    background-size: 200% 100%;
+    animation: house-shimmer 1.8s ease-in-out infinite;
+  }
+
+  /* ------------------------------------------------------------------
+     Pie-chart container — viewport-relative height so the pie is
+     VERTICALLY CENTERED on screen when the user lands on the Portfolio
+     tab (per eier direction: "it should appear center screen because
+     this shows all assets of the trust"). The container fills the
+     available viewport height after subtracting the sticky header +
+     tabs + heading. KPI strip + positions table sit below the fold
+     (accessible by scrolling). min-height prevents the pie from
+     collapsing on very short screens; max-height prevents absurd
+     sizes on ultra-tall monitors.
+     ------------------------------------------------------------------ */
+  .house-pie-container {
+    height: calc(100vh - 240px);
+    min-height: 360px;
+    max-height: 760px;
+  }
+}

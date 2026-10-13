@@ -1,0 +1,490 @@
+// House — Bankroll OS
+// Prisma schema for the House bankroll operating system.
+//
+// Design notes (see upload/house-bankroll-construction-plan.docx §7):
+//   - No seed phrases ever. Exchange connection metadata + wallet
+//     addresses + chain ids only. Secrets live in KMS/Vault, the DB
+//     stores only a reference id.
+//   - Mandate versions are immutable rows. A change never overwrites
+//     history. Same applies to EthicsList versions.
+//   - The DecisionLog is append-only: proposal, policy result,
+//     signature id or user rejection, fill.
+//   - Positions store source and confidence (CEX earn vs DeFi vs
+//     self-custody) — false precision is a documented risk.
+//
+// This schema is portable to Postgres later; we use SQLite for local
+// dev in the workspace (see .env DATABASE_URL).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & auth (Phase 1: email login, one owner, one book)
+// ---------------------------------------------------------------------------
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  // Owner | Beneficiary | Operator (later). Single owner in v1.
+  role      String   @default("owner")
+  // Bcrypt-hashed password (null for NextAuth-only / OAuth users later).
+  // Required for the Credentials provider flow (email + password login).
+  passwordHash String?
+  // Contact info collected during onboarding (trustee profile).
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  books       Book[]       // owner-of
+  approvals   DecisionApproval[]
+  sessions    Session[]
+  // Trustee side: trusts this user is the trustee of (plan §5 — the
+  // owner creates the trust, sets the mandate, holds the kill switch).
+  // Relation is named because User is on both sides of Trust.trustee
+  // and TrustMember.user; `@relation("TrustTrustee")` disambiguates
+  // which User-side field pairs with Trust.trustee.
+  trustsAsTrustee Trust[]          @relation("TrustTrustee")
+  memberships     TrustMember[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  sessionToken String   @unique
+  expires      DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Books — the unit of strategy, permission, and reporting
+// ---------------------------------------------------------------------------
+
+model Book {
+  id          String   @id @default(cuid())
+  ownerId     String
+  // Human label, e.g. "Treasury", "Trading sleeve"
+  name        String
+  // Book currency: a stablecoin the user picks. Default USDC.
+  // Reporting in fiat is a display conversion, not a second book.
+  bookCurrency String @default("USDC")
+  // Observe | Advise | Confirm | Rules | House
+  // Every account has exactly one mode. Moving up requires a fresh
+  // confirmation and a tighter permission grant. Moving down is immediate.
+  mode        String   @default("observe")
+  // When mode == "house", this is the time-boxed mandate expiry.
+  // Default expiry 7 days until the user extends it.
+  houseExpiry DateTime?
+  // Kill switch: when true, session keys are revoked and trade permission
+  // on exchange keys is disabled WITHOUT deleting history.
+  killedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Optional trust link (plan §5 — Book is the unit of strategy,
+  // permission, and reporting; Trust is the tenant container). Optional
+  // because the demo book predates Trust rows; we add the relation
+  // without migrating existing rows.
+  trustId    String?
+  trust      Trust?  @relation(fields: [trustId], references: [id], onDelete: SetNull)
+
+  owner       User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  accounts    Account[]
+  positions   Position[]
+  lots        Lot[]
+  marks       Mark[]
+  mandates    MandateVersion[]
+  ethicsLists EthicsListVersion[]
+  intents     Intent[]
+  decisions   DecisionLogEntry[]
+  snapshots   BookSnapshot[]
+
+  @@index([ownerId])
+}
+
+// ---------------------------------------------------------------------------
+// Mandate — immutable versioned rows
+// "Most profitable" is not a usable objective by itself. The mandate stores
+// a precise objective and the constraints the user actually chose.
+// ---------------------------------------------------------------------------
+
+model MandateVersion {
+  id          String   @id @default(cuid())
+  bookId      String
+  version     Int     // monotonically increasing per book
+  // JSON blob of the Mandate domain object (see src/server/domain/mandate.ts).
+  // Stored as a string because SQLite has no native JSON column type that
+  // Prisma can round-trip safely; we marshal/unmarshal on read/write.
+  payload     String
+  // Short human-readable summary for the audit list.
+  summary     String
+  // The user who created this version — every mandate change is recorded.
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, version])
+  @@index([bookId])
+}
+
+// ---------------------------------------------------------------------------
+// Ethics list — versioned so a later decision can be replayed against the
+// list that was live that day. Hard excludes are lists, not prompts.
+// ---------------------------------------------------------------------------
+
+model EthicsListVersion {
+  id           String   @id @default(cuid())
+  bookId       String
+  version      Int
+  // JSON blob of EthicsList (see src/server/domain/ethics.ts):
+  //   hardExclude: sanctioned addresses, known mixers, unverified contracts,
+  //                user-personal blocks
+  //   softPrefer:  liquidity, published supply, withdrawal history
+  //   toggles:    privacyCoins, gamblingTokens, memeSleeves (default off)
+  payload      String
+  createdBy    String
+  createdAt    DateTime @default(now())
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, version])
+  @@index([bookId])
+}
+
+// ---------------------------------------------------------------------------
+// Accounts — exchange connection metadata, wallet addresses, chain ids.
+// No seeds. Trade keys are referenced, never stored in clear text.
+// ---------------------------------------------------------------------------
+
+model Account {
+  id           String   @id @default(cuid())
+  bookId       String
+  // "cex" | "evm-wallet" | "solana-wallet" | "stake-defi"
+  kind         String
+  // Venue id (e.g. "binance", "kraken") or chain id (e.g. "ethereum", "base")
+  venue        String
+  // For CEX: the read-only / trade-scoped API key label (the secret itself
+  // lives in KMS; this column holds the KMS reference id, never the secret).
+  // For wallets: the public address.
+  ref          String
+  // "read" | "trade-no-withdraw" | "session-key"
+  // Read-only keys for Observe. Trade keys without withdrawal for Confirm/Rules.
+  keyScope     String   @default("read")
+  // Withdrawal allowlist — only addresses the user already controls.
+  // Stored as JSON array of strings. Empty unless the venue forces the scope.
+  withdrawAllow String  @default("[]")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  book      Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  positions Position[]
+
+  @@index([bookId])
+}
+
+// ---------------------------------------------------------------------------
+// Positions — free, locked, staked, claimable, with source and as-of time.
+// DeFi positions and exchange earn balances do not share one balance shape.
+// Store source and confidence, do not force a single number.
+// ---------------------------------------------------------------------------
+
+model Position {
+  id         String   @id @default(cuid())
+  bookId     String
+  accountId  String?
+  // Asset id, e.g. "eth", "usdc", "wbtc". Always reference the universe list.
+  assetId    String
+  // "free" | "locked" | "staked" | "claimable" | "lending" | "lp"
+  state      String
+  // Quantity in the asset's native unit. Stored as string for precision.
+  quantity   String
+  // Where this position came from: "cex-balance", "rpc-balance",
+  // "staking-contract", "lp-receipt", "user-manual". Confidence follows:
+  //   cex-balance/rpc-balance = high
+  //   staking/lp              = medium (indexer dependent)
+  //   user-manual             = low
+  source     String
+  confidence String   @default("high")
+  // DeFi position details (optional — only for stake-defi / lending / lp).
+  // Protocol name (e.g. "Aave", "Lido", "XMagnetic").
+  protocol        String?
+  // "staking" | "lending" | "lp" | "vault"
+  positionType    String?
+  // Optional contract address for verification.
+  contractAddress String?
+  // APY in basis points (e.g. 500 = 5% APY).
+  apyBps          Int?
+  // When a locked position unlocks (null = no lock).
+  lockEnd         DateTime?
+  // Entry price per unit in book currency (e.g. "60000.00" for BTC).
+  // Only for non-stablecoin assets — stablecoins are $1.00 by definition.
+  // Entered by the trustee during onboarding or when adding a position.
+  // Used for P&L the user can trust: unrealized P&L = (currentPrice - entryPrice) × quantity.
+  entryPrice      String?
+  asOf       DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  book    Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@unique([bookId, assetId, state, source])
+  @@index([bookId, assetId])
+}
+
+// ---------------------------------------------------------------------------
+// Lots — quantity, cost in the book currency, venue, timestamp.
+// Needed for PnL the user can trust.
+// ---------------------------------------------------------------------------
+
+model Lot {
+  id          String   @id @default(cuid())
+  bookId      String
+  assetId     String
+  // Quantity remaining in this lot (decreases on sell/transfer-out).
+  quantity    String
+  // Cost basis in the book currency (e.g. USDC). String for precision.
+  costLocal   String
+  venue       String
+  acquiredAt  DateTime
+  // Optional link to the decision that opened this lot.
+  decisionId  String?
+  createdAt   DateTime @default(now())
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([bookId, assetId])
+}
+
+// ---------------------------------------------------------------------------
+// Marks — reference price AND executable price, both stored. Do not
+// collapse them. Reference comes from CoinGecko/etc; executable from venue mids.
+// ---------------------------------------------------------------------------
+
+model Mark {
+  id           String   @id @default(cuid())
+  bookId       String
+  assetId      String
+  // "reference" | "executable"
+  kind         String
+  // Price in the book currency. String for precision.
+  price        String
+  // Liquidity context (e.g. 24h volume, top-of-book depth) — used by the
+  // policy engine's venue-health and slippage checks.
+  liquidity    String?
+  source       String
+  observedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([bookId, assetId, kind])
+}
+
+// ---------------------------------------------------------------------------
+// Intent — the only shape the policy engine accepts.
+// asset, side, venue, notional, max slippage, expiry, reason code.
+// ---------------------------------------------------------------------------
+
+model Intent {
+  id          String   @id @default(cuid())
+  bookId      String
+  // Client-side idempotency id — retries cannot double-fill.
+  clientId    String   @unique
+  assetId     String
+  // "buy" | "sell" | "stake" | "unstake" | "transfer-to-stables"
+  side        String
+  venue       String
+  // Notional in the book currency.
+  notional    String
+  maxSlippageBps Int
+  expiresAt   DateTime
+  // Machine reason code: "drift-rebalance" | "drawdown-de-risk" |
+  // "ai-proposal" | "scheduled-rebalance" | "user-approve"
+  reasonCode  String
+  // Origin: "rules" | "ai" | "user"
+  origin      String
+  // "pending" | "policy-rejected" | "user-rejected" |
+  // "signed" | "filled" | "expired" | "kill-switched"
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  book       Book               @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  approvals  DecisionApproval[]
+  log        DecisionLogEntry[]
+
+  @@index([bookId, status])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Decision log — append-only. Every accepted OR rejected intent is written
+// here so the beneficiary can export and replay.
+// ---------------------------------------------------------------------------
+
+model DecisionLogEntry {
+  id         String   @id @default(cuid())
+  bookId     String
+  intentId   String
+  // "policy-reject" | "policy-accept" | "user-approve" | "user-reject" |
+  // "signer-error" | "filled" | "expired" | "kill-switched"
+  kind       String
+  // JSON blob of the policy context snapshot at decision time:
+  //   universe check, ethics screen, concentration, drawdown,
+  //   daily turnover, venue health, and the verdict.
+  context    String
+  // Optional signature id returned by the signer.
+  signatureId String?
+  // Optional fill data (price, fee, slippage realized).
+  fill       String?
+  // Exit price per unit in book currency — logged when a position is
+  // sold/closed (per eier: "Exits are just logged"). Entry price is
+  // on the Position itself ("Entry is given and then logged").
+  exitPrice  String?
+  createdAt  DateTime @default(now())
+
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  intent Intent @relation(fields: [intentId], references: [id], onDelete: Cascade)
+
+  @@index([bookId, createdAt])
+}
+
+// Many-to-many: a user (the owner) approves an intent at Confirm mode.
+model DecisionApproval {
+  id        String   @id @default(cuid())
+  intentId  String
+  userId    String
+  // "approve" | "reject"
+  verdict   String
+  note      String?
+  createdAt DateTime @default(now())
+
+  intent Intent @relation(fields: [intentId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([intentId, userId])
+}
+
+// ---------------------------------------------------------------------------
+// Book snapshot — daily mark-to-book-currency for the drift view.
+// ---------------------------------------------------------------------------
+
+model BookSnapshot {
+  id             String   @id @default(cuid())
+  bookId         String
+  // Net asset value in book currency.
+  nav            String
+  // JSON blob of { assetId: weight } target vs actual, for drift view.
+  weights        String
+  // Drawdown from peak at this snapshot, in bps.
+  drawdownBps    Int
+  snapshotAt     DateTime @default(now())
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([bookId, snapshotAt])
+}
+
+// ---------------------------------------------------------------------------
+// Trust — the tenant container (plan §5; owner direction Task 11).
+//
+// A Trust is the fond-container that holds the book, positions, and mode.
+// v0: single demo user — userId references the trustee. One login can be
+// the trustee for several trusts in theory; v1 enforces one trust per
+// user (the first trust for a trustee is returned by getCurrentTrust).
+//
+// Roles inside a trust:
+//   trustee      — owner of the kill switch, the mandate, and the mode
+//                    switch. Default role for the trust creator.
+//   beneficiary  — named party who receives reports (plan §5, fase-6
+//                    concern; in v1 the trustee is the default
+//                    beneficiary).
+//   operator     — human or AI with propose rights only (plan §5).
+//                    The AI inside a trust has the operator role ONLY
+//                    when the trust mode is House (see aiRoleForMode).
+//
+// AI role derivation (per the owner direction in Task 11):
+//   Observe / Advise / Confirm / Rules  → AI = advisor
+//                                            (rådgivning, ikke execution)
+//   House                              → AI = operator
+//                                            (kalles til å operere;
+//                                             policy engine fortsatt gates)
+// ---------------------------------------------------------------------------
+
+model Trust {
+  id          String   @id @default(cuid())
+  // The trustee's name for this fond, e.g. "Smith Family Reserve".
+  name        String
+  // Trust type: "family-fund" | "personal" | "investment-club" (onboarding).
+  trustType   String  @default("family-fund")
+  // Book currency for this trust (default USDC).
+  bookCurrency String @default("USDC")
+  // Optional description / notes about the trust.
+  description String?
+  // v0: single demo user — userId references the trustee.
+  trusteeId   String
+  // Observe | Advise | Confirm | Rules | House (default Observe for new
+  // trusts). New trustees onboarde into Observe so the kill switch has
+  // nothing to revoke; moving up requires a fresh confirmation.
+  mode        String   @default("observe")
+  // When mode == "house", this is the time-boxed mandate expiry
+  // (plan §2: default 7 days until the user extends it).
+  houseExpiry DateTime?
+  // Kill switch timestamp — when set, session keys are revoked and trade
+  // permission on exchange keys is disabled WITHOUT deleting history
+  // (plan §3, §10). v1 marks the timestamp only; real key revocation is
+  // the signer service's job.
+  killedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relation name "TrustTrustee" pairs with User.trustsAsTrustee so
+  // Prisma can disambiguate the User-side back-relation from
+  // User.memberships (which corresponds to TrustMember.user).
+  trustee     User          @relation("TrustTrustee", fields: [trusteeId], references: [id], onDelete: Cascade)
+  members     TrustMember[]
+  books       Book[]
+
+  @@index([trusteeId])
+}
+
+// ---------------------------------------------------------------------------
+// TrustMember — the per-trust role link (plan §5).
+//
+// A user can be a member of one or more trusts with one role per trust.
+// v1 only uses the trustee role (the demo user is the trustee of the
+// demo trust). Beneficiary and operator rows are shaped for Phase 6.
+// ---------------------------------------------------------------------------
+
+model TrustMember {
+  id        String   @id @default(cuid())
+  trustId   String
+  userId    String
+  // trustee | beneficiary | operator (plan §5).
+  role      String
+  // Beneficiary contact info (for beneficiaries who are not registered users).
+  name            String?
+  email           String?
+  relationship    String?
+  // "full" | "summary" — reporting level for beneficiaries.
+  reportingLevel  String?
+  addedAt   DateTime @default(now())
+
+  trust     Trust @relation(fields: [trustId], references: [id], onDelete: Cascade)
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([trustId, userId])
+  @@index([trustId])
+}
