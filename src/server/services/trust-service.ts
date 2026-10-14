@@ -21,6 +21,7 @@ import {
   BankrollPrinciplesSchema,
 } from "../domain/bankroll";
 import type { BankrollPrinciples } from "../domain/bankroll";
+import { categorizePosition, type DeFiPositionType } from "../domain/risk-scoring";
 import { DryPowderStatus } from "../domain/advisory";
 import {
   type AIRole,
@@ -1258,7 +1259,15 @@ export class PrismaTrustService implements TrustService {
         const value = qty * price;
         nav += value;
 
-        const category = categorizeAsset(p.assetId);
+        // Composite risk scoring upgrade: when a position carries DeFi
+        // metadata (positionType + protocol), use categorizePosition to
+        // apply the strategy overlay (staking → safer, LP → riskier, etc).
+        // For spot positions, categorizeAsset (which now reads from the
+        // composite cache) is sufficient.
+        const category =
+          p.positionType && p.protocol
+            ? categorizePosition(p.assetId, p.positionType as DeFiPositionType, p.protocol)
+            : categorizeAsset(p.assetId);
         valueByCategory[category] += value;
 
         // Resolve venue + venueKind from Position.account. Orphan

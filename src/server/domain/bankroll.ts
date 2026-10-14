@@ -184,11 +184,74 @@ const ASSET_CATEGORIES: Readonly<Record<string, RiskCategory>> = Object.freeze({
  * Categorize an asset by id. Case-insensitive. Unknown assets default
  * to `aggressive` — the owner must opt them down deliberately.
  *
- * This is a pure lookup; it has no side effects and no I/O. The advisor
- * calls it once per position. The mandate may carry overrides (planned
- * in a later phase); until then, this mapping is the single source of
- * truth for "which sleeve is this asset in".
+ * **Composite risk scoring upgrade**: this function now delegates to the
+ * multi-factor composite scorer (`risk-scoring.ts`) when a cached score
+ * is available. The composite scorer combines:
+ *   - Market / Quantitative Risk (35%): realized vol, drawdown, beta, downside
+ *   - Liquidity & Size (20%): market cap, volume/mcap
+ *   - Maturity & Track Record (12%): project age
+ *   - Fundamentals / Utility (15%): TVL, revenue (hardcoded v1)
+ *   - Security / Protocol (13%): audits, decentralization (hardcoded v1)
+ *   - Tokenomics (5%): inflation, unlocks (hardcoded v1)
+ *
+ * If no composite score is cached (cold start, or all market-data sources
+ * are down), this falls back to the `ASSET_CATEGORIES` hardcoded table
+ * — so the function remains synchronous and never blocks. The composite
+ * cache is refreshed asynchronously by the market-data collector +
+ * the `/api/risk-scores` endpoint.
+ *
+ * This is a PURE synchronous function — no I/O. The composite cache is
+ * a module-level Map populated by an async background process. Callers
+ * that need the full breakdown (score + drivers + dimensions) should
+ * call `computeRiskScore` directly from `risk-scoring.ts`.
  */
 export function categorizeAsset(assetId: string): RiskCategory {
-  return ASSET_CATEGORIES[assetId.toLowerCase()] ?? RiskCategory.Aggressive;
+  const id = assetId.toLowerCase();
+
+  // 1. Check the composite score cache first (populated by async refresh)
+  const cached = compositeCategoryCache.get(id);
+  if (cached) {
+    return cached;
+  }
+
+  // 2. Fall back to the hardcoded table
+  return ASSET_CATEGORIES[id] ?? RiskCategory.Aggressive;
+}
+
+// ---------------------------------------------------------------------------
+// Composite score cache — populated asynchronously by the market-data
+// collector. The sync `categorizeAsset` reads from this cache; when empty,
+// it falls back to the hardcoded table above.
+//
+// This two-tier approach keeps `categorizeAsset` synchronous (it's called
+// from ~20 places including client-side React) while still benefiting
+// from the composite scorer when market data is available.
+// ---------------------------------------------------------------------------
+
+/** Module-level cache: lowercase assetId → composite-derived RiskCategory. */
+const compositeCategoryCache = new Map<string, RiskCategory>();
+
+/**
+ * Update the composite category cache for an asset. Called by the async
+ * market-data collector after it computes a fresh composite score.
+ *
+ * This is the bridge between the async scorer and the sync `categorizeAsset`.
+ */
+export function setCompositeCategory(assetId: string, category: RiskCategory): void {
+  compositeCategoryCache.set(assetId.toLowerCase(), category);
+}
+
+/**
+ * Check whether a composite score is cached for an asset. Used by the
+ * API endpoint to decide whether to trigger a refresh.
+ */
+export function hasCompositeCategory(assetId: string): boolean {
+  return compositeCategoryCache.has(assetId.toLowerCase());
+}
+
+/**
+ * Clear the composite cache (for testing or forced refresh).
+ */
+export function clearCompositeCache(): void {
+  compositeCategoryCache.clear();
 }
