@@ -471,7 +471,12 @@ model Trust {
 model TrustMember {
   id        String   @id @default(cuid())
   trustId   String
-  userId    String
+  // Nullable: the trustee row carries the real userId; beneficiary rows
+  // have null userId (they're not registered users). The @@unique below
+  // only constrains non-null pairs (SQLite treats NULLs as distinct), so
+  // multiple beneficiary rows with null userId are allowed while still
+  // preventing duplicate trustee rows for the same (trustId, userId).
+  userId    String?
   // trustee | beneficiary | operator (plan §5).
   role      String
   // Beneficiary contact info (for beneficiaries who are not registered users).
@@ -482,8 +487,8 @@ model TrustMember {
   reportingLevel  String?
   addedAt   DateTime @default(now())
 
-  trust     Trust @relation(fields: [trustId], references: [id], onDelete: Cascade)
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trust     Trust  @relation(fields: [trustId], references: [id], onDelete: Cascade)
+  user      User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([trustId, userId])
   @@index([trustId])

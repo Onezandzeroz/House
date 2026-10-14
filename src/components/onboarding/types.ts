@@ -780,6 +780,180 @@ export function makeInitialWizardForm(): WizardForm {
 }
 
 /**
+ * Build a WizardForm pre-filled with the "Smith Family Reserve" demo
+ * data — the same portfolio the seed script writes for the demo user
+ * (trustee@house.local). Used by the "Load demo data" button in the
+ * onboarding wizard so a new user can see a complete, realistic trust
+ * filled in across all 5 pages without typing anything.
+ *
+ * The portfolio (per eier direction):
+ *   - CEX (binance):        BTC + USDC   — blue-chip + dry powder
+ *   - DEX (xmagnetic.org):  FLR + XRP    — XRPL ecosystem L1s
+ *   - XRP-wallet (cold storage): XLM + RLUSD + USDT + SOL
+ *
+ * entryPrice is set for non-stablecoin assets; stablecoins (USDC,
+ * RLUSD, USDT) omit it (they are $1.00 by definition). Beneficiaries
+ * include a spouse (full reporting) + a son (summary reporting) so the
+ * beneficiary page shows two realistic rows.
+ *
+ * `confirmed` is left false — the user still reviews and checks the
+ * confirmation box on Side 5 before submitting.
+ */
+export function makeDemoWizardForm(): WizardForm {
+  const demoPositions: WizardPositionV2[] = [
+    // CEX (binance) — blue-chip + USDC for trading
+    {
+      id: makeRowId(),
+      assetId: "BTC",
+      quantity: "1.2",
+      venueKind: "cex",
+      venue: "binance",
+      entryPrice: "60000",
+      isCustomAsset: false,
+      protocol: "",
+      positionType: "",
+      contractAddress: "",
+      apyPercent: "",
+      lockEnd: "",
+    },
+    {
+      id: makeRowId(),
+      assetId: "USDC",
+      quantity: "75000",
+      venueKind: "cex",
+      venue: "binance",
+      entryPrice: "",
+      isCustomAsset: false,
+      protocol: "",
+      positionType: "",
+      contractAddress: "",
+      apyPercent: "",
+      lockEnd: "",
+    },
+    // DEX (xmagnetic.org) — XRPL ecosystem L1s
+    {
+      id: makeRowId(),
+      assetId: "FLR",
+      quantity: "50000",
+      venueKind: "dex",
+      venue: "xmagnetic.org",
+      entryPrice: "0.020",
+      isCustomAsset: false,
+      protocol: "",
+      positionType: "",
+      contractAddress: "",
+      apyPercent: "",
+      lockEnd: "",
+    },
+    {
+      id: makeRowId(),
+      assetId: "XRP",
+      quantity: "10000",
+      venueKind: "dex",
+      venue: "xmagnetic.org",
+      entryPrice: "2.30",
+      isCustomAsset: false,
+      protocol: "",
+      positionType: "",
+      contractAddress: "",
+      apyPercent: "",
+      lockEnd: "",
+    },
+    // XRP-wallet (cold storage) — self-custody
+    {
+      id: makeRowId(),
+      assetId: "XLM",
+      quantity: "50000",
+      venueKind: "xrp-wallet",
+      venue: "cold storage",
+      entryPrice: "0.35",
+      isCustomAsset: false,
+      protocol: "",
+      positionType: "",
+      contractAddress: "",
+      apyPercent: "",
+      lockEnd: "",
+    },
+    {
+      id: makeRowId(),
+      assetId: "RLUSD",
+      quantity: "25000",
+      venueKind: "xrp-wallet",
+      venue: "cold storage",
+      entryPrice: "",
+      isCustomAsset: false,
+      protocol: "",
+      positionType: "",
+      contractAddress: "",
+      apyPercent: "",
+      lockEnd: "",
+    },
+    {
+      id: makeRowId(),
+      assetId: "USDT",
+      quantity: "25000",
+      venueKind: "xrp-wallet",
+      venue: "cold storage",
+      entryPrice: "",
+      isCustomAsset: false,
+      protocol: "",
+      positionType: "",
+      contractAddress: "",
+      apyPercent: "",
+      lockEnd: "",
+    },
+    {
+      id: makeRowId(),
+      assetId: "SOL",
+      quantity: "100",
+      venueKind: "xrp-wallet",
+      venue: "cold storage",
+      entryPrice: "130",
+      isCustomAsset: false,
+      protocol: "",
+      positionType: "",
+      contractAddress: "",
+      apyPercent: "",
+      lockEnd: "",
+    },
+  ];
+
+  return {
+    // Side 1 — Trust details
+    name: "Smith Family Reserve",
+    trustType: "family-fund",
+    bookCurrency: "USDC",
+    description:
+      "Family reserve — blue-chip BTC + XRPL ecosystem + stablecoin dry powder across Binance, XMagnetic DEX, and cold storage.",
+    // Side 2 — Trustee info
+    trusteeName: "Demo Trustee",
+    trusteePhone: "+1 (555) 123-4567",
+    trusteeAddress: "1 Reserve Court, Geneva, Switzerland",
+    // Side 3 — Beneficiaries
+    beneficiaries: [
+      {
+        id: makeRowId(),
+        name: "Eleanor Smith",
+        email: "eleanor.smith@example.com",
+        relationship: "Spouse",
+        reportingLevel: "full",
+      },
+      {
+        id: makeRowId(),
+        name: "James Smith",
+        email: "james.smith@example.com",
+        relationship: "Son",
+        reportingLevel: "summary",
+      },
+    ],
+    // Side 4 — Positions
+    positions: demoPositions,
+    // Side 5 — Confirmation (user still checks the box)
+    confirmed: false,
+  };
+}
+
+/**
  * True if a beneficiary row is "empty" — i.e. the user has not typed
  * anything into name OR email. Empty rows are skipped on submit so
  * the user can leave the last partial row blank without an error.

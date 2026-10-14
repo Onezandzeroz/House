@@ -6,7 +6,7 @@ import {
   AnimatePresence,
   motion,
 } from "framer-motion";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +32,7 @@ import {
   isBeneficiariesValid,
   isPositionsValidV2,
   isValidTrustName,
+  makeDemoWizardForm,
   makeInitialWizardForm,
   positionsV2ToInput,
   type MultiPageStep,
@@ -177,6 +178,16 @@ export function MultiPageWizard({
     setCurrentPage(target);
   };
 
+  // ---- Load demo data -----------------------------------------------
+  // Fills all 5 pages with the "Smith Family Reserve" demo portfolio so
+  // the user can see a complete, realistic trust without typing. The
+  // user can still review/edit every page before submitting. Unlocks all
+  // pages so the user can jump to the review page directly.
+  const loadDemoData = React.useCallback(() => {
+    setForm(makeDemoWizardForm());
+    setFurthestReached(5);
+  }, []);
+
   // ---- Form mutation helper -----------------------------------------
   const updateForm = React.useCallback(
     (patch: Partial<WizardForm>) => {
@@ -306,9 +317,23 @@ export function MultiPageWizard({
                 Family Reserve
               </span>
             </div>
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-              Page {currentPage} of 5
-            </span>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={loadDemoData}
+                disabled={submitState === "saving"}
+                className="gap-1.5"
+                title="Fill all pages with demo data (Smith Family Reserve)"
+              >
+                <Sparkles className="size-3.5" aria-hidden />
+                Load demo data
+              </Button>
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                Page {currentPage} of 5
+              </span>
+            </div>
           </div>
           <ProgressIndicator
             current={currentPage}

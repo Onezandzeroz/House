@@ -658,18 +658,16 @@ export class PrismaTrustService implements TrustService {
 
         // 6. Beneficiary rows (Task 47-49 — Side 3). Hver beneficiary
         // opprettes som en TrustMember med role="beneficiary" og
-        // contact info. userId er null her fordi beneficiaries ikke er
-        // innloggede brukere ennå — schema-kolonnen `userId` er derfor
-        // ikke satt. Men TrustMember.userId er påkrevd i schema
-        // (String, ikke null), så vi knytter beneficiary-radene til
-        // trusteesen (owner) inntil beneficiary registrerer seg selv.
-        // Dette er en v1-kompromiss som etterlater beneficiary-radene
-        // knyttet til trusteesens User.id; fremtidig Phase 6 kan splitte.
+        // contact info. userId er null fordi beneficiaries ikke er
+        // innloggede brukere ennå. Schema-kolonnen `userId` er nå
+        // nullable (String?) så vi setter den til null i stedet for
+        // å knytte til trusteesens User.id (som tidligere forårsaket
+        // en unique-constraint-kollisjon med trustee-radene i steg 5).
         for (const b of input.beneficiaries) {
           await tx.trustMember.create({
             data: {
               trustId: t.id,
-              userId: trusteeId,
+              userId: null,
               role: "beneficiary",
               name: b.name,
               email: b.email,
@@ -2011,6 +2009,15 @@ export class PrismaTrustService implements TrustService {
           error: new HouseError(
             "ethics-version-conflict",
             `An ethics list version conflict occurred (race). Reload the latest version and try again. ${message}`,
+          ),
+        };
+      }
+      if (lowered.includes("trustmember")) {
+        return {
+          ok: false,
+          error: new HouseError(
+            "trust-service-error",
+            `A trust member with this (trustId, userId) already exists. This usually means you already have a trust — try signing out and back in. ${message}`,
           ),
         };
       }
