@@ -12,6 +12,8 @@ import {
   Activity,
   ShieldCheck,
   AlertTriangle,
+  Newspaper,
+  type LucideIcon,
 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,30 +29,41 @@ import { SLEEVE_META } from "@/components/onboarding/types";
 import { categorizeAsset, type RiskCategory } from "@/server/domain/bankroll";
 
 /**
- * PositionCard — a rich card for a single asset position in the
- * portfolio. Replaces the flat table row with a visually richer layout
- * that shows all the position's data at a glance:
+ * PositionCard — a refined, wealth-management-style card for a single
+ * asset position. Designed to feel like a private bank statement, not
+ * a crypto exchange:
  *
- *   ┌─────────────────────────────────────────────┐
- *   │  BTC                          Conservative  │
- *   │  Bitcoin · blue-chip                         │
- *   │  ─────────────────────────────────────────── │
- *   │  Quantity          1.2 BTC                   │
- *   │  Entry price       $60,000.00                │
- *   │  Current price     $83,308.24  ◉ FTSO       │
- *   │  Market value      $99,969.89                │
- *   │  P&L               +$27,969.89  (+46.6%)    │
- *   │  Weight            38.42%                   │
- *   │  ─────────────────────────────────────────── │
- *   │  📍 binance (CEX) · cold storage (XRP wallet)│
- *   └─────────────────────────────────────────────┘
+ *   - Serif typography for the asset name + headline value (House brand)
+ *   - Descriptive section labels ("Cost basis", "Current valuation",
+ *     "Custody") instead of abbreviations
+ *   - Muted, elegant tones — no loud green/red P&L arrows
+ *   - A "Market commentary" placeholder (italic, muted) that will later
+ *     be populated with live news / context per asset
+ *   - Subtle hairline dividers between sections
+ *   - Refined left accent (very subtle) matching the sleeve tier
  *
- * Each card carries the sleeve colour as a left-border accent so the
- * trustee can see the risk tier at a glance.
+ *   ┌──────────────────────────────────────────────────────┐
+ *   │  Bitcoin                                  Conservative │
+ *   │  BTC · blue-chip reserve asset                        │
+ *   │  ──────────────────────────────────────────────────── │
+ *   │  POSITION SUMMARY                                    │
+ *   │  1.2 BTC held at Binance (Exchange)                   │
+ *   │  ──────────────────────────────────────────────────── │
+ *   │  COST BASIS          CURRENT VALUATION                │
+ *   │  $60,000.00 / unit   $83,308.24 / unit  ◉ FTSO       │
+ *   │  $72,000.00 total    $99,969.89 total                 │
+ *   │                       +$27,969.89 (+46.62%)          │
+ *   │  ──────────────────────────────────────────────────── │
+ *   │  PORTFOLIO WEIGHT     38.42%                          │
+ *   │  ──────────────────────────────────────────────────── │
+ *   │  📰 MARKET COMMENTARY                                │
+ *   │  Market commentary will appear here when news data    │
+ *   │  is connected.                                       │
+ *   └──────────────────────────────────────────────────────┘
  */
 
 // ---------------------------------------------------------------------------
-// Types (mirror the FlatRow from positions-table.tsx but self-contained)
+// Types
 // ---------------------------------------------------------------------------
 
 export interface PositionCardData {
@@ -70,8 +83,7 @@ export interface PositionCardData {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers (reused from positions-table.tsx — kept here so the card is
-// self-contained)
+// Helpers
 // ---------------------------------------------------------------------------
 
 function formatMoney(s: string | number): string {
@@ -98,6 +110,7 @@ interface PnlValue {
   value: number;
   costBasis: number;
   currentValue: number;
+  percent: number | null;
 }
 
 function computePnl(row: PositionCardData): PnlValue | null {
@@ -110,20 +123,78 @@ function computePnl(row: PositionCardData): PnlValue | null {
   if (!Number.isFinite(current) || current <= 0) return null;
   const costBasis = entry * qty;
   if (!Number.isFinite(costBasis)) return null;
-  return { value: current - costBasis, costBasis, currentValue: current };
+  const value = current - costBasis;
+  const percent = costBasis > 0 ? (value / costBasis) * 100 : null;
+  return { value, costBasis, currentValue: current, percent };
 }
 
 // ---------------------------------------------------------------------------
-// Price-source indicator (reused logic from positions-table.tsx)
+// Asset metadata — descriptive names for the "exclusive" feel
+// ---------------------------------------------------------------------------
+
+const ASSET_DESCRIPTIONS: Record<string, string> = {
+  BTC: "Bitcoin · blue-chip reserve asset",
+  ETH: "Ethereum · dominant smart-contract platform",
+  SOL: "Solana · high-throughput L1",
+  XRP: "XRP · institutional payments network",
+  XLM: "Stellar Lumens · cross-border payments",
+  FLR: "Flare · on-chain oracle ecosystem",
+  USDC: "USD Coin · fiat-backed stablecoin",
+  USDT: "Tether · fiat-backed stablecoin",
+  RLUSD: "Ripple USD · fiat-backed stablecoin",
+  DAI: "DAI · crypto-collateralized stablecoin",
+  FRAX: "FRAX · partially-algorithmic stablecoin",
+  stETH: "Lido Staked ETH · yield-bearing liquid staking",
+  rETH: "Rocket Pool ETH · decentralized liquid staking",
+  cbETH: "Coinbase Wrapped ETH · institutional staking",
+  WBTC: "Wrapped Bitcoin · ERC-20 BTC representation",
+  ARB: "Arbitrum · leading Ethereum L2",
+  OP: "Optimism · Ethereum L2 rollup",
+  AVAX: "Avalanche · high-speed L1 with subnets",
+  UNI: "Uniswap · leading DEX governance",
+  AAVE: "Aave · leading lending protocol",
+  LDO: "Lido DAO · liquid staking governance",
+  DOGE: "Dogecoin · speculative meme asset",
+};
+
+function assetDescription(assetId: string): string {
+  return ASSET_DESCRIPTIONS[assetId.toUpperCase()] ?? `${assetId} · digital asset`;
+}
+
+function assetName(assetId: string): string {
+  const desc = ASSET_DESCRIPTIONS[assetId.toUpperCase()];
+  if (!desc) return assetId;
+  return desc.split(" · ")[0]!;
+}
+
+// ---------------------------------------------------------------------------
+// Venue description — natural language for the "exclusive" feel
+// ---------------------------------------------------------------------------
+
+function venueDescription(venue: string, venueKind: string): string {
+  const kindLabel: Record<string, string> = {
+    cex: "Exchange",
+    "evm-wallet": "EVM Wallet",
+    "solana-wallet": "Solana Wallet",
+    "stake-defi": "DeFi Protocol",
+    "xrp-wallet": "XRP Wallet",
+    dex: "DEX",
+  };
+  const kind = kindLabel[venueKind] ?? venueKind;
+  return `${venue} (${kind})`;
+}
+
+// ---------------------------------------------------------------------------
+// Price-source chip (refined, subtle)
 // ---------------------------------------------------------------------------
 
 const PRICE_SOURCE_SHORT: Record<string, string> = {
   ftso: "FTSO",
   ccxt: "CCXT",
   coingecko: "CoinGecko",
-  "reference-fallback": "Ref (live down)",
-  "reference-prices-v0": "Reference",
-  "reference-prices-v0-fallback": "Ref $1.00",
+  "reference-fallback": "Ref",
+  "reference-prices-v0": "Ref",
+  "reference-prices-v0-fallback": "Ref",
 };
 
 function PriceSourceChip({
@@ -143,30 +214,27 @@ function PriceSourceChip({
 
   if (isFallback || isLowConfidence) {
     return (
-      <Badge
-        variant="outline"
-        className="gap-1 border-warn/40 bg-warn/10 text-[9px] text-warn-foreground"
-      >
+      <span className="inline-flex items-center gap-1 text-[10px] text-warn-foreground/80">
         <AlertTriangle className="size-2.5" aria-hidden />
         {label}
-      </Badge>
+      </span>
     );
   }
 
-  const Icon =
+  const Icon: LucideIcon =
     priceSource === "ftso" ? Radio : priceSource === "ccxt" ? Activity : ShieldCheck;
   const color =
     priceSource === "ftso"
-      ? "border-primary/40 bg-primary/10 text-primary"
+      ? "text-primary/70"
       : priceSource === "ccxt"
-        ? "border-allow/40 bg-allow/10 text-allow-foreground"
-        : "border-border/40 bg-muted/40 text-muted-foreground";
+        ? "text-allow-foreground/70"
+        : "text-muted-foreground";
 
   return (
-    <Badge variant="outline" className={cn("gap-1 text-[9px]", color)}>
+    <span className={cn("inline-flex items-center gap-1 text-[10px]", color)}>
       <Icon className="size-2.5" aria-hidden />
       {label}
-    </Badge>
+    </span>
   );
 }
 
@@ -175,7 +243,7 @@ function PriceSourceChip({
 // ---------------------------------------------------------------------------
 
 function VenueIcon({ venueKind }: { venueKind: string }) {
-  const iconClass = "size-3.5 text-muted-foreground";
+  const iconClass = "size-3.5 text-muted-foreground/60";
   switch (venueKind) {
     case "cex":
       return <Building2 className={iconClass} aria-hidden />;
@@ -189,103 +257,110 @@ function VenueIcon({ venueKind }: { venueKind: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// The card
+// The card — wealth-management aesthetic
 // ---------------------------------------------------------------------------
 
-const SLEEVE_BORDER: Record<RiskCategory, string> = {
-  stable: "border-l-allow/60",
-  conservative: "border-l-primary/60",
-  balanced: "border-l-warn/60",
-  aggressive: "border-l-reject/60",
+/** Subtle sleeve accent — a thin left border in the sleeve tone. */
+const SLEEVE_ACCENT: Record<RiskCategory, string> = {
+  stable: "before:bg-allow/30",
+  conservative: "before:bg-primary/30",
+  balanced: "before:bg-warn/30",
+  aggressive: "before:bg-reject/30",
 };
 
 export function PositionCard({ row }: { row: PositionCardData }) {
   const sleeveMeta = SLEEVE_META[row.sleeve];
   const pnl = computePnl(row);
   const isStable = categorizeAsset(row.assetId) === "stable";
-
-  const pnlPercent =
-    pnl && pnl.costBasis > 0
-      ? ((pnl.value / pnl.costBasis) * 100).toFixed(2)
-      : null;
-
-  const PnlIcon =
-    pnl === null ? null : pnl.value > 0 ? TrendingUp : pnl.value < 0 ? TrendingDown : Minus;
+  const name = assetName(row.assetId);
+  const description = assetDescription(row.assetId);
 
   return (
     <Card
       className={cn(
-        "relative overflow-hidden border-l-4 transition-colors hover:bg-muted/20",
-        SLEEVE_BORDER[row.sleeve],
+        "relative overflow-hidden border-border/40 bg-card/30 transition-colors hover:bg-card/50",
+        "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[3px]",
+        SLEEVE_ACCENT[row.sleeve],
       )}
     >
-      <CardContent className="flex flex-col gap-3 p-4">
-        {/* Header: asset id + sleeve chip */}
-        <div className="flex items-start justify-between gap-2">
+      <CardContent className="flex flex-col gap-4 p-5 sm:p-6">
+        {/* ── Header: asset name + sleeve ────────────────────── */}
+        <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-0.5">
-            <span className="font-mono text-lg font-bold text-foreground">
-              {row.assetId}
-            </span>
-            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            <h3 className="font-serif text-xl font-bold tracking-tight text-foreground">
+              {name}
+            </h3>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              {description}
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">
               {sleeveMeta.label}
             </span>
-          </div>
-          <Badge
-            variant="outline"
-            className={cn("gap-1 text-[10px]", sleeveMeta.chip)}
-          >
             <span
               aria-hidden
-              className={cn("size-1.5 rounded-full", sleeveMeta.dot)}
+              className={cn("size-2 rounded-full", sleeveMeta.dot)}
             />
-            {sleeveMeta.label}
-          </Badge>
+          </div>
         </div>
 
-        {/* Key metrics grid */}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-          {/* Quantity */}
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase tracking-widest text-muted-foreground">
-              Quantity
-            </span>
-            <span className="font-mono house-num text-foreground">
+        {/* ── Hairline divider ──────────────────────────────── */}
+        <div className="house-hairline" aria-hidden />
+
+        {/* ── Position summary ──────────────────────────────── */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+            Position Summary
+          </span>
+          <p className="text-sm leading-relaxed text-foreground/90">
+            <span className="font-mono font-semibold house-num">
               {formatNumber(row.quantity)}
+            </span>{" "}
+            <span className="font-mono text-muted-foreground">{row.assetId}</span>{" "}
+            held at{" "}
+            <span className="font-medium text-foreground">{row.venue}</span>
+            <span className="text-muted-foreground">
+              {" "}({row.venueKind})
             </span>
-          </div>
+          </p>
+        </div>
 
-          {/* Weight */}
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase tracking-widest text-muted-foreground">
-              Weight
-            </span>
-            <span className="font-mono house-num text-foreground">
-              {bpsToPercent(row.weightBps)}%
-            </span>
-          </div>
-
-          {/* Entry price */}
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase tracking-widest text-muted-foreground">
-              Entry price
+        {/* ── Cost basis + Current valuation ────────────────── */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Cost basis */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+              Cost Basis
             </span>
             {isStable || row.entryPrice === null ? (
-              <span className="font-mono text-muted-foreground/60">--</span>
+              <>
+                <span className="font-mono text-sm text-muted-foreground/50">
+                  $1.00 / unit
+                </span>
+                <span className="font-mono text-xs text-muted-foreground/50">
+                  Par value
+                </span>
+              </>
             ) : (
-              <span className="font-mono house-num text-muted-foreground">
-                ${formatMoney(row.entryPrice)}
-              </span>
+              <>
+                <span className="font-mono text-sm text-muted-foreground">
+                  ${formatMoney(row.entryPrice)}
+                  <span className="text-[10px] text-muted-foreground/60"> / unit</span>
+                </span>
+                <span className="font-mono text-xs text-muted-foreground/70 house-num">
+                  ${formatMoney(pnl?.costBasis ?? 0)}
+                  <span className="text-[10px] text-muted-foreground/60"> total</span>
+                </span>
+              </>
             )}
           </div>
 
-          {/* Current price + source chip */}
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase tracking-widest text-muted-foreground">
-              Current price
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono house-num text-foreground">
-                ${formatMoney(row.price)}
+          {/* Current valuation */}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+                Current Valuation
               </span>
               <PriceSourceChip
                 priceSource={row.priceSource}
@@ -293,78 +368,95 @@ export function PositionCard({ row }: { row: PositionCardData }) {
                 priceIsFallback={row.priceIsFallback}
               />
             </div>
-          </div>
-        </div>
-
-        {/* Market value + P&L — the headline numbers */}
-        <div className="flex items-end justify-between gap-2 border-t border-border/40 pt-2">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase tracking-widest text-muted-foreground">
-              Market value
+            <span className="font-serif text-lg font-bold text-foreground house-num">
+              ${formatMoney(row.price)}
+              <span className="text-[10px] font-normal text-muted-foreground/60"> / unit</span>
             </span>
-            <span className="font-serif text-lg font-bold text-primary house-num">
+            <span className="font-mono text-xs text-muted-foreground/70 house-num">
               ${formatMoney(row.value)}
+              <span className="text-[10px] text-muted-foreground/60"> total</span>
             </span>
           </div>
-
-          {pnl !== null && PnlIcon && (
-            <div className="flex flex-col items-end gap-0.5">
-              <span className="text-[9px] uppercase tracking-widest text-muted-foreground">
-                P&L
-              </span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span
-                    className={cn(
-                      "flex items-center gap-1 font-mono text-sm font-semibold house-num",
-                      pnl.value > 0
-                        ? "text-allow-foreground"
-                        : pnl.value < 0
-                          ? "text-reject-foreground"
-                          : "text-muted-foreground",
-                    )}
-                  >
-                    <PnlIcon className="size-3.5" aria-hidden />
-                    {pnl.value > 0 ? "+" : ""}
-                    {formatMoney(pnl.value)}
-                    {pnlPercent && (
-                      <span className="text-[10px] opacity-70">
-                        ({pnl.value > 0 ? "+" : ""}
-                        {pnlPercent}%)
-                      </span>
-                    )}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[16rem]">
-                  <div className="flex flex-col gap-1 text-xs">
-                    <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">Cost basis</span>
-                      <span className="font-mono house-num">
-                        ${formatMoney(pnl.costBasis)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">Current</span>
-                      <span className="font-mono house-num">
-                        ${formatMoney(pnl.currentValue)}
-                      </span>
-                    </div>
-                    <div className="mt-1 border-t border-border/40 pt-1 text-[10px] text-muted-foreground">
-                      P&L = current − (entry × qty)
-                    </div>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          )}
         </div>
 
-        {/* Venue footer */}
-        <div className="flex items-center gap-1.5 border-t border-border/40 pt-2 text-[10px] text-muted-foreground">
-          <VenueIcon venueKind={row.venueKind} />
-          <span className="font-mono">{row.venue}</span>
-          <span className="text-muted-foreground/50">·</span>
-          <span className="uppercase tracking-widest">{row.venueKind}</span>
+        {/* ── P&L + Weight (if P&L available) ───────────────── */}
+        {(pnl || row.weightBps > 0) && (
+          <>
+            <div className="house-hairline" aria-hidden />
+            <div className="flex items-end justify-between gap-3">
+              {pnl && (
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+                    Unrealized P&L
+                  </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className={cn(
+                          "font-serif text-base font-semibold house-num cursor-default",
+                          pnl.value > 0
+                            ? "text-allow-foreground/80"
+                            : pnl.value < 0
+                              ? "text-reject-foreground/80"
+                              : "text-muted-foreground",
+                        )}
+                      >
+                        {pnl.value > 0 ? "+" : ""}
+                        {formatMoney(pnl.value)}
+                        {pnl.percent !== null && (
+                          <span className="ml-1.5 text-[11px] font-normal opacity-70">
+                            ({pnl.value > 0 ? "+" : ""}
+                            {pnl.percent.toFixed(2)}%)
+                          </span>
+                        )}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[16rem]">
+                      <div className="flex flex-col gap-1 text-xs">
+                        <div className="flex justify-between gap-3">
+                          <span className="text-muted-foreground">Cost basis</span>
+                          <span className="font-mono house-num">
+                            ${formatMoney(pnl.costBasis)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <span className="text-muted-foreground">Current value</span>
+                          <span className="font-mono house-num">
+                            ${formatMoney(pnl.currentValue)}
+                          </span>
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
+              {row.weightBps > 0 && (
+                <div className="flex flex-col items-end gap-0.5">
+                  <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+                    Portfolio Weight
+                  </span>
+                  <span className="font-serif text-base font-semibold text-foreground house-num">
+                    {bpsToPercent(row.weightBps)}%
+                  </span>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── Market commentary (placeholder for news) ──────── */}
+        <div className="house-hairline" aria-hidden />
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <Newspaper className="size-3 text-muted-foreground/50" aria-hidden />
+            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+              Market Commentary
+            </span>
+          </div>
+          <p className="text-[11px] italic leading-relaxed text-muted-foreground/50">
+            Market commentary and relevant news for {name} will appear here
+            when the news feed is connected.
+          </p>
         </div>
       </CardContent>
     </Card>
@@ -372,7 +464,7 @@ export function PositionCard({ row }: { row: PositionCardData }) {
 }
 
 // ---------------------------------------------------------------------------
-// PositionCardGrid — renders a responsive grid of PositionCards
+// PositionCardGrid — single-column stack (full width, one under another)
 // ---------------------------------------------------------------------------
 
 export function PositionCardGrid({ rows }: { rows: PositionCardData[] }) {
@@ -384,7 +476,7 @@ export function PositionCardGrid({ rows }: { rows: PositionCardData[] }) {
     );
   }
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="flex flex-col gap-3">
       {rows.map((row, i) => (
         <PositionCard key={`${row.assetId}-${row.venue}-${row.venueKind}-${i}`} row={row} />
       ))}

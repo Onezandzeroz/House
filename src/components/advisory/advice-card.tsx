@@ -2,45 +2,54 @@
 
 import * as React from "react";
 import {
-  TrendingUp,
-  TrendingDown,
+  ArrowUpRight,
+  ArrowDownRight,
   Minus,
   AlertOctagon,
   Sparkles,
+  Newspaper,
   type LucideIcon,
 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 import type { AllocationAdvice } from "@/server/domain/advisory";
 import type { RiskCategory } from "@/server/domain/bankroll";
 
 /**
- * AdviceCard — a rich card for a single allocation advice item,
- * with a Trustee AI placeholder explanation of WHY the advice is given.
+ * AdviceCard — a refined, wealth-management-style recommendation card
+ * for a single allocation advice item. Reads like a private banker's
+ * memo, not a crypto trading signal:
  *
- *   ┌──────────────────────────────────────────────┐
- *   │  BTC                          ADD  ↑         │
- *   │  Conservative · blue-chip                    │
- *   │  ──────────────────────────────────────────  │
- *   │  Current weight    38.42%                   │
- *   │  Target weight     45.00%                   │
- *   │  Delta              +6.58%  ($17,125 USDC)  │
- *   │  ──────────────────────────────────────────  │
- *   │  ✦ Trustee AI                                │
- *   │  BTC is the dominant store-of-value asset    │
- *   │  with the lowest volatility in the book.     │
- *   │  Current allocation is below the target     │
- *   │  for the Conservative sleeve — adding here  │
- *   │  strengthens the core position without      │
- *   │  increasing overall portfolio risk.         │
- *   └──────────────────────────────────────────────┘
+ *   - Serif typography for the asset name + headline recommendation
+ *   - Descriptive section labels ("Current Allocation", "Target
+ *     Allocation", "Recommended Action")
+ *   - The Trustee AI explanation reads like a personal wealth advisor's
+ *     note — WHY the recommendation is made, in natural language
+ *   - A "Market Context" placeholder (italic, muted) for future news
+ *   - Subtle, muted tones — no loud green/red
+ *   - Refined left accent matching the action type
  *
- * The Trustee AI explanation is a placeholder generated from the
- * advice's `action` + `reason` + `riskCategory` + `deltaBps`. A later
- * phase will replace this with a real LLM call via z-ai-web-dev-sdk.
+ *   ┌──────────────────────────────────────────────────────┐
+ *   │  Bitcoin                                  ↑ ADD       │
+ *   │  BTC · Conservative sleeve                            │
+ *   │  ──────────────────────────────────────────────────── │
+ *   │  RECOMMENDATION                                      │
+ *   │  Increase allocation to Bitcoin by 6.30%              │
+ *   │  (+15,802.45 USDC)                                    │
+ *   │  ──────────────────────────────────────────────────── │
+ *   │  CURRENT ALLOCATION    TARGET ALLOCATION              │
+ *   │  28.70%                 35.00%                        │
+ *   │  ──────────────────────────────────────────────────── │
+ *   │  ✦ TRUSTEE AI — ADVISORY NOTE                        │
+ *   │  Bitcoin is the dominant store-of-value asset...     │
+ *   │  [full explanation]                                   │
+ *   │  ──────────────────────────────────────────────────── │
+ *   │  📰 MARKET CONTEXT                                    │
+ *   │  Market context will appear here when news is         │
+ *   │  connected.                                          │
+ *   └──────────────────────────────────────────────────────┘
  */
 
 // ---------------------------------------------------------------------------
@@ -61,120 +70,158 @@ function formatMoney(s: string | number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Action + risk metadata (mirrors allocation-advice-table.tsx)
+// Action metadata (refined — subtle, muted tones)
 // ---------------------------------------------------------------------------
 
 interface ActionMeta {
   label: string;
-  chip: string;
+  verb: string; // "Increase" / "Reduce" / "Maintain" / "Exit"
   icon: LucideIcon;
-  accent: string;
+  accent: string; // left-border accent
+  tone: string; // text tone for the action word
 }
 
 const ACTION_META: Record<AllocationAdvice["action"], ActionMeta> = {
   add: {
     label: "Add",
-    chip: "bg-allow/15 text-allow-foreground border-allow/40",
-    icon: TrendingUp,
-    accent: "border-l-allow/60",
+    verb: "Increase allocation to",
+    icon: ArrowUpRight,
+    accent: "before:bg-allow/30",
+    tone: "text-allow-foreground/80",
   },
   reduce: {
     label: "Reduce",
-    chip: "bg-warn/15 text-warn-foreground border-warn/40",
-    icon: TrendingDown,
-    accent: "border-l-warn/60",
+    verb: "Reduce allocation to",
+    icon: ArrowDownRight,
+    accent: "before:bg-warn/30",
+    tone: "text-warn-foreground/80",
   },
   hold: {
     label: "Hold",
-    chip: "bg-muted text-muted-foreground border-border",
+    verb: "Maintain current allocation to",
     icon: Minus,
-    accent: "border-l-border/60",
+    accent: "before:bg-border/30",
+    tone: "text-muted-foreground",
   },
   exit: {
     label: "Exit",
-    chip: "bg-reject/15 text-reject-foreground border-reject/40",
+    verb: "Divest entirely from",
     icon: AlertOctagon,
-    accent: "border-l-reject/60",
+    accent: "before:bg-reject/30",
+    tone: "text-reject-foreground/80",
   },
 };
 
-const RISK_CHIP: Record<RiskCategory, string> = {
-  stable: "bg-allow/10 text-allow-foreground border-allow/40",
-  conservative: "bg-primary/10 text-primary border-primary/40",
-  balanced: "bg-warn/10 text-warn-foreground border-warn/40",
-  aggressive: "bg-reject/10 text-reject-foreground border-reject/40",
+// ---------------------------------------------------------------------------
+// Asset metadata (same as position-card — for the "exclusive" feel)
+// ---------------------------------------------------------------------------
+
+const ASSET_NAMES: Record<string, string> = {
+  BTC: "Bitcoin",
+  ETH: "Ethereum",
+  SOL: "Solana",
+  XRP: "XRP",
+  XLM: "Stellar Lumens",
+  FLR: "Flare",
+  USDC: "USD Coin",
+  USDT: "Tether",
+  RLUSD: "Ripple USD",
+  DAI: "DAI",
+  FRAX: "FRAX",
+  stETH: "Lido Staked ETH",
+  rETH: "Rocket Pool ETH",
+  cbETH: "Coinbase Wrapped ETH",
+  WBTC: "Wrapped Bitcoin",
+  ARB: "Arbitrum",
+  OP: "Optimism",
+  AVAX: "Avalanche",
+  UNI: "Uniswap",
+  AAVE: "Aave",
+  LDO: "Lido DAO",
+  DOGE: "Dogecoin",
 };
 
+function assetName(assetId: string): string {
+  return ASSET_NAMES[assetId.toUpperCase()] ?? assetId;
+}
+
 // ---------------------------------------------------------------------------
-// Trustee AI placeholder explanation generator
+// Trustee AI advisory note generator
 // ---------------------------------------------------------------------------
 
 /**
- * Generate a human-readable Trustee AI explanation for an allocation
- * advice. This is a PLACEHOLDER — it templates from the advice's action,
- * reason, risk category, and delta. A later phase will replace this with
- * a real LLM call via z-ai-web-dev-sdk that produces a richer, context-
- * aware explanation.
+ * Generate a Trustee AI advisory note — reads like a private banker's
+ * memo, not a trading signal. Covers:
+ *   1. The recommendation in plain language
+ *   2. WHY (the advisory engine's reason, rephrased)
+ *   3. HOW it affects the portfolio (weight shift, notional, sleeve)
+ *   4. Risk considerations specific to the action
  *
- * The explanation always covers:
- *   1. WHY the action is recommended (the reason)
- *   2. WHAT the action means in practice (buy/sell/hold)
- *   3. HOW it affects the portfolio (weight shift + notional)
+ * PLACEHOLDER — will be replaced with a real LLM call via
+ * z-ai-web-dev-sdk in a later phase.
  */
-function generateTrusteeAiExplanation(
+function generateTrusteeAiNote(
   advice: AllocationAdvice,
   bookCurrency: string,
 ): string {
-  const action = advice.action;
+  const name = assetName(advice.assetId);
   const reason = advice.reason;
-  const category = advice.riskCategory;
-  const deltaPct = bpsToPercent(Math.abs(advice.deltaBps));
-  const direction = advice.deltaBps > 0 ? "increase" : "decrease";
+  const current = bpsToPercent(advice.currentWeightBps);
+  const target = bpsToPercent(advice.targetWeightBps);
+  const delta = bpsToPercent(Math.abs(advice.deltaBps));
   const notional = advice.notionalChange;
+  const category = advice.riskCategory;
 
-  switch (action) {
+  switch (advice.action) {
     case "add":
       return (
-        `${advice.assetId} is categorized as ${category} risk and currently ` +
-        `sits at ${bpsToPercent(advice.currentWeightBps)}% of the portfolio, ` +
-        `below the target of ${bpsToPercent(advice.targetWeightBps)}%. ` +
-        `${reason} Adding here would ${direction} the position by ${deltaPct}% ` +
-        `(${notional} ${bookCurrency}), strengthening the ${category} sleeve ` +
-        `without breaching the single-asset weight cap. This is consistent with ` +
-        `the current regime posture and the bankroll principle of keeping dry ` +
-        `powder ready — the add is funded from the stable sleeve, not from ` +
-        `de-risking other productive positions.`
+        `${name} currently represents ${current}% of the portfolio, below ` +
+        `the target allocation of ${target}% for the ${category} sleeve. ` +
+        `${reason} ` +
+        `The recommendation is to increase the position by ${delta}% ` +
+        `(${notional} ${bookCurrency}), bringing the allocation into ` +
+        `alignment with the mandate's target band. This adjustment ` +
+        `strengthens the core position without exceeding the single-asset ` +
+        `weight cap, and is funded from the stablecoin sleeve to preserve ` +
+        `dry powder discipline. The policy engine has verified the trade ` +
+        `is compliant with the current mandate and risk budget.`
       );
 
     case "reduce":
       return (
-        `${advice.assetId} has drifted to ${bpsToPercent(advice.currentWeightBps)}% ` +
-        `of the portfolio, above the target of ${bpsToPercent(advice.targetWeightBps)}%. ` +
-        `${reason} Reducing by ${deltaPct}% (${notional} ${bookCurrency}) brings ` +
-        `the position back within the ${category} sleeve's target band and ` +
-        `rebalances dry powder toward the stable floor. This is a routine ` +
-        `drift-correction, not a directional call — the policy gate has verified ` +
-        `the trade is within the mandate's risk budget.`
+        `${name} has drifted to ${current}% of the portfolio, above the ` +
+        `target of ${target}%. ${reason} ` +
+        `The recommendation is to reduce the position by ${delta}% ` +
+        `(${notional} ${bookCurrency}), rebalancing back into the ` +
+        `${category} sleeve's target band. The proceeds move to the ` +
+        `stablecoin sleeve, restoring dry powder toward the 30% floor. ` +
+        `This is a routine drift-correction — not a directional call on ` +
+        `${name}'s prospects. The policy engine has confirmed the ` +
+        `reduction is within the mandate's turnover and concentration limits.`
       );
 
     case "hold":
       return (
-        `${advice.assetId} is at ${bpsToPercent(advice.currentWeightBps)}% — ` +
-        `within the target band for the ${category} sleeve. ${reason} ` +
-        `No action is needed. The position is contributing to the portfolio's ` +
-        `current posture without breaching concentration or dry-powder limits. ` +
-        `The policy engine will re-evaluate on the next regime change or if ` +
-        `drift exceeds the rebalance threshold.`
+        `${name} is at ${current}%, within the target band for the ` +
+        `${category} sleeve. ${reason} ` +
+        `No adjustment is recommended at this time. The position is ` +
+        `contributing to the portfolio's current posture without ` +
+        `breaching concentration, liquidity, or dry-powder limits. ` +
+        `The advisory engine will re-evaluate on the next regime change ` +
+        `or if drift exceeds the rebalance threshold.`
       );
 
     case "exit":
       return (
-        `${advice.assetId} is flagged for exit. ${reason} The recommendation ` +
-        `is to fully divest (${notional} ${bookCurrency}) and move the proceeds ` +
-        `to the stable sleeve. This may be because the asset is outside the ` +
-        `mandate's universe, has failed an ethics screen, or its risk profile ` +
-        `has deteriorated beyond the ${category} sleeve's tolerance. The policy ` +
-        `gate has verified the exit is compliant with the mandate.`
+        `${name} is recommended for full divestment. ${reason} ` +
+        `The recommendation is to exit the position entirely ` +
+        `(${notional} ${bookCurrency}) and move proceeds to the ` +
+        `stablecoin sleeve. This may reflect that the asset is outside ` +
+        `the mandate's universe, has failed an ethics or compliance ` +
+        `screen, or its risk profile has deteriorated beyond the ` +
+        `${category} sleeve's tolerance. The policy gate has verified ` +
+        `the exit is compliant with the mandate. Proceeds will be held ` +
+        `as dry powder pending the next allocation review.`
       );
 
     default:
@@ -194,111 +241,137 @@ export interface AdviceCardProps {
 export function AdviceCard({ advice, bookCurrency }: AdviceCardProps) {
   const meta = ACTION_META[advice.action];
   const ActionIcon = meta.icon;
-  const aiExplanation = React.useMemo(
-    () => generateTrusteeAiExplanation(advice, bookCurrency),
+  const name = assetName(advice.assetId);
+  const aiNote = React.useMemo(
+    () => generateTrusteeAiNote(advice, bookCurrency),
     [advice, bookCurrency],
   );
 
   const deltaSign = advice.deltaBps > 0 ? "+" : "";
-  const deltaColor =
-    advice.deltaBps > 0
-      ? "text-allow-foreground"
-      : advice.deltaBps < 0
-        ? "text-warn-foreground"
-        : "text-muted-foreground";
 
   return (
     <Card
       className={cn(
-        "relative overflow-hidden border-l-4 transition-colors hover:bg-muted/20",
+        "relative overflow-hidden border-border/40 bg-card/30 transition-colors hover:bg-card/50",
+        "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[3px]",
         meta.accent,
       )}
     >
-      <CardContent className="flex flex-col gap-3 p-4">
-        {/* Header: asset id + action badge */}
-        <div className="flex items-start justify-between gap-2">
+      <CardContent className="flex flex-col gap-4 p-5 sm:p-6">
+        {/* ── Header: asset name + action ───────────────────── */}
+        <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-0.5">
-            <span className="font-mono text-lg font-bold text-foreground">
-              {advice.assetId}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <Badge
-                variant="outline"
-                className={cn("text-[9px]", RISK_CHIP[advice.riskCategory])}
-              >
-                {advice.riskCategory}
-              </Badge>
-            </div>
+            <h3 className="font-serif text-xl font-bold tracking-tight text-foreground">
+              {name}
+            </h3>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              {advice.assetId} · {advice.riskCategory} sleeve
+            </p>
           </div>
-          <Badge
-            variant="outline"
-            className={cn("gap-1 text-[10px]", meta.chip)}
-          >
-            <ActionIcon className="size-3" aria-hidden />
-            {meta.label}
-          </Badge>
+          <div className="flex items-center gap-1.5">
+            <ActionIcon className={cn("size-4", meta.tone)} aria-hidden />
+            <span className={cn("text-[10px] font-semibold uppercase tracking-[0.2em]", meta.tone)}>
+              {meta.label}
+            </span>
+          </div>
         </div>
 
-        {/* Weight metrics */}
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase tracking-widest text-muted-foreground">
-              Current
+        {/* ── Hairline divider ──────────────────────────────── */}
+        <div className="house-hairline" aria-hidden />
+
+        {/* ── Recommendation ────────────────────────────────── */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+            Recommendation
+          </span>
+          <p className="text-sm leading-relaxed text-foreground/90">
+            {meta.verb} {name} by{" "}
+            <span className="font-mono font-semibold house-num">
+              {bpsToPercent(Math.abs(advice.deltaBps))}%
             </span>
-            <span className="font-mono house-num text-foreground">
+            <span className="text-muted-foreground">
+              {" "}
+              ({advice.notionalChange} {bookCurrency})
+            </span>
+          </p>
+        </div>
+
+        {/* ── Current + Target allocation ───────────────────── */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+              Current Allocation
+            </span>
+            <span className="font-serif text-lg font-semibold text-foreground house-num">
               {bpsToPercent(advice.currentWeightBps)}%
             </span>
           </div>
           <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase tracking-widest text-muted-foreground">
-              Target
+            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+              Target Allocation
             </span>
-            <span className="font-mono house-num text-muted-foreground">
+            <span className="font-serif text-lg font-semibold text-muted-foreground house-num">
               {bpsToPercent(advice.targetWeightBps)}%
             </span>
           </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase tracking-widest text-muted-foreground">
-              Delta
-            </span>
-            <span className={cn("font-mono house-num font-semibold", deltaColor)}>
-              {deltaSign}
-              {bpsToPercent(advice.deltaBps)}%
-            </span>
-          </div>
         </div>
 
-        {/* Notional */}
-        <div className="flex items-baseline justify-between border-t border-border/40 pt-2 text-xs">
-          <span className="text-[9px] uppercase tracking-widest text-muted-foreground">
-            Notional change
+        {/* ── Delta indicator ───────────────────────────────── */}
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+            Weight Adjustment
           </span>
-          <span className="font-mono house-num text-foreground">
-            {advice.notionalChange}{" "}
-            <span className="text-[10px] text-muted-foreground">{bookCurrency}</span>
+          <span
+            className={cn(
+              "font-mono house-num font-medium",
+              advice.deltaBps > 0
+                ? "text-allow-foreground/70"
+                : advice.deltaBps < 0
+                  ? "text-warn-foreground/70"
+                  : "text-muted-foreground",
+            )}
+          >
+            {deltaSign}
+            {bpsToPercent(advice.deltaBps)}%
           </span>
         </div>
 
-        {/* Trustee AI explanation */}
-        <div className="rounded-md border border-primary/20 bg-primary/[0.03] p-3">
-          <div className="mb-1.5 flex items-center gap-1.5">
-            <Sparkles className="size-3 text-primary" aria-hidden />
-            <span className="text-[9px] font-semibold uppercase tracking-widest text-primary">
-              Trustee AI
+        {/* ── Trustee AI advisory note ──────────────────────── */}
+        <div className="house-hairline" aria-hidden />
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="size-3 text-primary/60" aria-hidden />
+            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-primary/70">
+              Trustee AI — Advisory Note
             </span>
           </div>
-          <p className="text-[11px] leading-relaxed text-foreground/80">
-            {aiExplanation}
+          <p className="text-[12px] leading-relaxed text-foreground/75">
+            {aiNote}
           </p>
         </div>
 
-        {/* Original reason (from the advisory engine) */}
-        <div className="border-t border-border/40 pt-2">
-          <span className="text-[9px] uppercase tracking-widest text-muted-foreground">
-            Engine reason
+        {/* ── Engine rationale ──────────────────────────────── */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+            Engine Rationale
           </span>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+          <p className="text-[11px] italic leading-relaxed text-muted-foreground/70">
             {advice.reason}
+          </p>
+        </div>
+
+        {/* ── Market context (placeholder for news) ─────────── */}
+        <div className="house-hairline" aria-hidden />
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <Newspaper className="size-3 text-muted-foreground/50" aria-hidden />
+            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+              Market Context
+            </span>
+          </div>
+          <p className="text-[11px] italic leading-relaxed text-muted-foreground/50">
+            Market context and relevant news for {name} will appear here
+            when the news feed is connected.
           </p>
         </div>
       </CardContent>
@@ -307,7 +380,7 @@ export function AdviceCard({ advice, bookCurrency }: AdviceCardProps) {
 }
 
 // ---------------------------------------------------------------------------
-// AdviceCardGrid — renders a responsive grid of AdviceCards
+// AdviceCardGrid — single-column stack (full width, one under another)
 // ---------------------------------------------------------------------------
 
 export function AdviceCardGrid({
@@ -325,7 +398,7 @@ export function AdviceCardGrid({
     );
   }
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="flex flex-col gap-3">
       {advice.map((item, i) => (
         <AdviceCard key={`${item.assetId}-${i}`} advice={item} bookCurrency={bookCurrency} />
       ))}
