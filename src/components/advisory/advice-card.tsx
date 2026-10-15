@@ -264,16 +264,41 @@ export function AdviceCard({ advice, bookCurrency }: AdviceCardProps) {
             <h3 className="font-serif text-xl font-bold tracking-tight text-foreground">
               {name}
             </h3>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
               {advice.assetId} · {advice.riskCategory} sleeve
             </p>
           </div>
           <div className="flex items-center gap-1.5">
             <ActionIcon className={cn("size-4", meta.tone)} aria-hidden />
-            <span className={cn("text-[10px] font-semibold uppercase tracking-[0.2em]", meta.tone)}>
+            <span className={cn("text-[11px] font-semibold uppercase tracking-[0.2em]", meta.tone)}>
               {meta.label}
             </span>
           </div>
+        </div>
+
+        {/* ── Fading gradient banner under the title ────────── */}
+        <div
+          aria-hidden
+          className={cn(
+            "h-[2px] w-full rounded-full",
+            "bg-gradient-to-r from-transparent via-primary/40 to-transparent",
+            advice.action === "add" && "from-transparent via-allow/40 to-transparent",
+            advice.action === "reduce" && "from-transparent via-warn/40 to-transparent",
+            advice.action === "exit" && "from-transparent via-reject/40 to-transparent",
+          )}
+        />
+
+        {/* ── Trustee AI advisory note (right under the title) ─ */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="size-3 text-primary/60" aria-hidden />
+            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-primary/70">
+              Trustee AI — Advisory Note
+            </span>
+          </div>
+          <p className="text-[18px] leading-[1.7] text-foreground/80">
+            {aiNote}
+          </p>
         </div>
 
         {/* ── Hairline divider ──────────────────────────────── */}
@@ -281,10 +306,10 @@ export function AdviceCard({ advice, bookCurrency }: AdviceCardProps) {
 
         {/* ── Recommendation ────────────────────────────────── */}
         <div className="flex flex-col gap-1">
-          <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+          <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
             Recommendation
           </span>
-          <p className="text-sm leading-relaxed text-foreground/90">
+          <p className="text-base leading-relaxed text-foreground/90">
             {meta.verb} {name} by{" "}
             <span className="font-mono font-semibold house-num">
               {bpsToPercent(Math.abs(advice.deltaBps))}%
@@ -299,18 +324,18 @@ export function AdviceCard({ advice, bookCurrency }: AdviceCardProps) {
         {/* ── Current + Target allocation ───────────────────── */}
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
               Current Allocation
             </span>
-            <span className="font-serif text-lg font-semibold text-foreground house-num">
+            <span className="font-serif text-xl font-semibold text-foreground house-num">
               {bpsToPercent(advice.currentWeightBps)}%
             </span>
           </div>
           <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
               Target Allocation
             </span>
-            <span className="font-serif text-lg font-semibold text-muted-foreground house-num">
+            <span className="font-serif text-xl font-semibold text-muted-foreground house-num">
               {bpsToPercent(advice.targetWeightBps)}%
             </span>
           </div>
@@ -318,7 +343,7 @@ export function AdviceCard({ advice, bookCurrency }: AdviceCardProps) {
 
         {/* ── Delta indicator ───────────────────────────────── */}
         <div className="flex items-center justify-between text-xs">
-          <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+          <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
             Weight Adjustment
           </span>
           <span
@@ -336,26 +361,12 @@ export function AdviceCard({ advice, bookCurrency }: AdviceCardProps) {
           </span>
         </div>
 
-        {/* ── Trustee AI advisory note ──────────────────────── */}
-        <div className="house-hairline" aria-hidden />
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="size-3 text-primary/60" aria-hidden />
-            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-primary/70">
-              Trustee AI — Advisory Note
-            </span>
-          </div>
-          <p className="text-[12px] leading-relaxed text-foreground/75">
-            {aiNote}
-          </p>
-        </div>
-
         {/* ── Engine rationale ──────────────────────────────── */}
         <div className="flex flex-col gap-1">
-          <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+          <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
             Engine Rationale
           </span>
-          <p className="text-[11px] italic leading-relaxed text-muted-foreground/70">
+          <p className="text-[13px] italic leading-relaxed text-muted-foreground/70">
             {advice.reason}
           </p>
         </div>
@@ -365,11 +376,11 @@ export function AdviceCard({ advice, bookCurrency }: AdviceCardProps) {
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-1.5">
             <Newspaper className="size-3 text-muted-foreground/50" aria-hidden />
-            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
               Market Context
             </span>
           </div>
-          <p className="text-[11px] italic leading-relaxed text-muted-foreground/50">
+          <p className="text-[13px] italic leading-relaxed text-muted-foreground/50">
             Market context and relevant news for {name} will appear here
             when the news feed is connected.
           </p>

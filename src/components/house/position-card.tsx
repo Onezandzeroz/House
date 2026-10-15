@@ -214,7 +214,7 @@ function PriceSourceChip({
 
   if (isFallback || isLowConfidence) {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-warn-foreground/80">
+      <span className="inline-flex items-center gap-1 text-[12px] text-warn-foreground/80">
         <AlertTriangle className="size-2.5" aria-hidden />
         {label}
       </span>
@@ -231,7 +231,7 @@ function PriceSourceChip({
         : "text-muted-foreground";
 
   return (
-    <span className={cn("inline-flex items-center gap-1 text-[10px]", color)}>
+    <span className={cn("inline-flex items-center gap-1 text-[12px]", color)}>
       <Icon className="size-2.5" aria-hidden />
       {label}
     </span>
@@ -290,12 +290,12 @@ export function PositionCard({ row }: { row: PositionCardData }) {
             <h3 className="font-serif text-xl font-bold tracking-tight text-foreground">
               {name}
             </h3>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
               {description}
             </p>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">
+            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">
               {sleeveMeta.label}
             </span>
             <span
@@ -310,10 +310,10 @@ export function PositionCard({ row }: { row: PositionCardData }) {
 
         {/* ── Position summary ──────────────────────────────── */}
         <div className="flex flex-col gap-1">
-          <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+          <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
             Position Summary
           </span>
-          <p className="text-sm leading-relaxed text-foreground/90">
+          <p className="text-base leading-relaxed text-foreground/90">
             <span className="font-mono font-semibold house-num">
               {formatNumber(row.quantity)}
             </span>{" "}
@@ -330,12 +330,12 @@ export function PositionCard({ row }: { row: PositionCardData }) {
         <div className="grid grid-cols-2 gap-4">
           {/* Cost basis */}
           <div className="flex flex-col gap-1">
-            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
               Cost Basis
             </span>
             {isStable || row.entryPrice === null ? (
               <>
-                <span className="font-mono text-sm text-muted-foreground/50">
+                <span className="font-mono text-base text-muted-foreground/50">
                   $1.00 / unit
                 </span>
                 <span className="font-mono text-xs text-muted-foreground/50">
@@ -344,13 +344,13 @@ export function PositionCard({ row }: { row: PositionCardData }) {
               </>
             ) : (
               <>
-                <span className="font-mono text-sm text-muted-foreground">
+                <span className="font-mono text-base text-muted-foreground">
                   ${formatMoney(row.entryPrice)}
-                  <span className="text-[10px] text-muted-foreground/60"> / unit</span>
+                  <span className="text-[12px] text-muted-foreground/60"> / unit</span>
                 </span>
-                <span className="font-mono text-xs text-muted-foreground/70 house-num">
+                <span className="font-mono text-[13px] text-muted-foreground/70 house-num">
                   ${formatMoney(pnl?.costBasis ?? 0)}
-                  <span className="text-[10px] text-muted-foreground/60"> total</span>
+                  <span className="text-[12px] text-muted-foreground/60"> total</span>
                 </span>
               </>
             )}
@@ -359,7 +359,7 @@ export function PositionCard({ row }: { row: PositionCardData }) {
           {/* Current valuation */}
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+              <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
                 Current Valuation
               </span>
               <PriceSourceChip
@@ -368,13 +368,13 @@ export function PositionCard({ row }: { row: PositionCardData }) {
                 priceIsFallback={row.priceIsFallback}
               />
             </div>
-            <span className="font-serif text-lg font-bold text-foreground house-num">
+            <span className="font-serif text-xl font-bold text-foreground house-num">
               ${formatMoney(row.price)}
-              <span className="text-[10px] font-normal text-muted-foreground/60"> / unit</span>
+              <span className="text-[12px] font-normal text-muted-foreground/60"> / unit</span>
             </span>
-            <span className="font-mono text-xs text-muted-foreground/70 house-num">
+            <span className="font-mono text-[13px] text-muted-foreground/70 house-num">
               ${formatMoney(row.value)}
-              <span className="text-[10px] text-muted-foreground/60"> total</span>
+              <span className="text-[12px] text-muted-foreground/60"> total</span>
             </span>
           </div>
         </div>
@@ -386,14 +386,14 @@ export function PositionCard({ row }: { row: PositionCardData }) {
             <div className="flex items-end justify-between gap-3">
               {pnl && (
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+                  <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
                     Unrealized P&L
                   </span>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span
                         className={cn(
-                          "font-serif text-base font-semibold house-num cursor-default",
+                          "font-serif text-lg font-semibold house-num cursor-default",
                           pnl.value > 0
                             ? "text-allow-foreground/80"
                             : pnl.value < 0
@@ -404,7 +404,7 @@ export function PositionCard({ row }: { row: PositionCardData }) {
                         {pnl.value > 0 ? "+" : ""}
                         {formatMoney(pnl.value)}
                         {pnl.percent !== null && (
-                          <span className="ml-1.5 text-[11px] font-normal opacity-70">
+                          <span className="ml-1.5 text-[13px] font-normal opacity-70">
                             ({pnl.value > 0 ? "+" : ""}
                             {pnl.percent.toFixed(2)}%)
                           </span>
@@ -432,7 +432,7 @@ export function PositionCard({ row }: { row: PositionCardData }) {
               )}
               {row.weightBps > 0 && (
                 <div className="flex flex-col items-end gap-0.5">
-                  <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+                  <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
                     Portfolio Weight
                   </span>
                   <span className="font-serif text-base font-semibold text-foreground house-num">
@@ -449,11 +449,11 @@ export function PositionCard({ row }: { row: PositionCardData }) {
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-1.5">
             <Newspaper className="size-3 text-muted-foreground/50" aria-hidden />
-            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
+            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
               Market Commentary
             </span>
           </div>
-          <p className="text-[11px] italic leading-relaxed text-muted-foreground/50">
+          <p className="text-[13px] italic leading-relaxed text-muted-foreground/50">
             Market commentary and relevant news for {name} will appear here
             when the news feed is connected.
           </p>
