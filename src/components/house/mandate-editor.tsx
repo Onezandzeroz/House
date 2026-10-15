@@ -587,7 +587,7 @@ export function MandateEditor() {
         </CardContent>
       </Card>
 
-      <ScrollArea className="max-h-[80vh]">
+      <ScrollArea className="max-h-[none]">
         <div className="flex flex-col gap-6 pr-2">
           {/* ---- A. Risk Budget ----------------------------------------- */}
           <Card className="relative overflow-hidden">

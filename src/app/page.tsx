@@ -10,6 +10,7 @@ import {
   LogOut,
   PieChart,
   Scale,
+  Settings,
   ShieldCheck,
 } from "lucide-react";
 
@@ -23,6 +24,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 import { AdvisoryDashboard } from "@/components/advisory";
 import { MultiPageWizard } from "@/components/onboarding";
@@ -135,6 +143,9 @@ function Dashboard({ email }: { email?: string }) {
   const [foundation, setFoundation] = React.useState<FoundationState>({
     kind: "loading",
   });
+  // Settings dialog (cogwheel, top-right) — holds Trustee + Mandate views
+  // so the main tab list stays clean (Portfolio / Advisory / History only).
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
 
   // ---- Trust fetch (own callback so we can re-run it after the
   // wizard completes a new trust). --------------------------------------
@@ -224,6 +235,19 @@ function Dashboard({ email }: { email?: string }) {
           <div className="flex flex-wrap items-center gap-2">
             <FoundationBadge foundation={foundation} />
             <UserBadge email={email} />
+            {trustState.kind === "ok" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setSettingsOpen(true)}
+                aria-label="Settings — Trustee + Mandate"
+                title="Settings — Trustee + Mandate"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Settings className="size-4" aria-hidden />
+              </Button>
+            )}
           </div>
         </div>
         <div className="house-hairline" aria-hidden />
@@ -251,6 +275,7 @@ function Dashboard({ email }: { email?: string }) {
         )}
 
         {trustState.kind === "ok" && (
+          <>
           <Tabs
             defaultValue="portfolio"
             className="flex flex-col gap-6"
@@ -263,17 +288,9 @@ function Dashboard({ email }: { email?: string }) {
                 <PieChart className="size-3.5" aria-hidden />
                 Portfolio
               </TabsTrigger>
-              <TabsTrigger value="trustee" className="gap-1.5">
-                <ShieldCheck className="size-3.5" aria-hidden />
-                Trustee
-              </TabsTrigger>
               <TabsTrigger value="advisory" className="gap-1.5">
                 <GitBranch className="size-3.5" aria-hidden />
                 Advisory
-              </TabsTrigger>
-              <TabsTrigger value="mandate" className="gap-1.5">
-                <Scale className="size-3.5" aria-hidden />
-                Mandate
               </TabsTrigger>
               <TabsTrigger value="history" className="gap-1.5">
                 <History className="size-3.5" aria-hidden />
@@ -294,18 +311,6 @@ function Dashboard({ email }: { email?: string }) {
               />
             </TabsContent>
 
-            {/* SECONDARY — Trustee: AI operator panel + safety protocol.
-                This is the "control room" — mode switch, AI role,
-                kill switch, policy gate reference. */}
-            <TabsContent value="trustee" className="mt-0">
-              <TrusteeView
-                trust={trustState.trust}
-                onTrustUpdate={(next) =>
-                  setTrustState({ kind: "ok", trust: next })
-                }
-              />
-            </TabsContent>
-
             {/* SECONDARY — Advisory dashboard (Task 9). Live-price
                 badge sits in the top-right above AdvisoryDashboard so
                 the owner sees whether the NAV is live CoinGecko or
@@ -317,12 +322,6 @@ function Dashboard({ email }: { email?: string }) {
               <AdvisoryDashboard />
             </TabsContent>
 
-            {/* NEW (Task 38) — Mandate editor: risk budget + universe +
-                ethics + version history. */}
-            <TabsContent value="mandate" className="mt-0">
-              <MandateEditor />
-            </TabsContent>
-
             {/* NEW (Task 38) — History: NAV chart + DecisionLog audit
                 trail. */}
             <TabsContent value="history" className="mt-0">
@@ -330,6 +329,52 @@ function Dashboard({ email }: { email?: string }) {
             </TabsContent>
 
           </Tabs>
+
+          {/* Settings dialog — Trustee + Mandate views moved here so the
+              main tab list stays clean (Portfolio / Advisory / History).
+              Accessible via the cogwheel icon in the header (top-right). */}
+          <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+            <DialogContent className="w-[95vw] max-w-[56rem] max-h-[92vh] overflow-y-auto p-4 sm:p-6">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Settings className="size-4" aria-hidden />
+                  Settings
+                </DialogTitle>
+                <DialogDescription>
+                  Trustee controls + mandate editor. Changes apply
+                  immediately.
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Internal sub-tabs for Trustee + Mandate */}
+              <Tabs defaultValue="trustee" className="flex flex-col gap-4">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="trustee" className="gap-1.5">
+                    <ShieldCheck className="size-3.5" aria-hidden />
+                    Trustee
+                  </TabsTrigger>
+                  <TabsTrigger value="mandate" className="gap-1.5">
+                    <Scale className="size-3.5" aria-hidden />
+                    Mandate
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="trustee" className="mt-0">
+                  <TrusteeView
+                    trust={trustState.trust}
+                    onTrustUpdate={(next) =>
+                      setTrustState({ kind: "ok", trust: next })
+                    }
+                  />
+                </TabsContent>
+
+                <TabsContent value="mandate" className="mt-0">
+                  <MandateEditor />
+                </TabsContent>
+              </Tabs>
+            </DialogContent>
+          </Dialog>
+          </>
         )}
       </main>
 

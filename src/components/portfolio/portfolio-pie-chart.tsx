@@ -113,12 +113,12 @@ const RING_STROKE_HEX = "#f5d491";
  *   OUTER  :  50 % opacity  (per-venue slices, most faded)
  * The fade is applied as a base fillOpacity on every Cell; the
  * existing hover/pin dim logic multiplies on top of it. */
-const INNER_INNER_R = "38%";
-const INNER_OUTER_R = "54%";
-const MIDDLE_INNER_R = "58%";
-const MIDDLE_OUTER_R = "74%";
-const OUTER_INNER_R = "78%";
-const OUTER_OUTER_R = "96%";
+const INNER_INNER_R = "32%";
+const INNER_OUTER_R = "46%";
+const MIDDLE_INNER_R = "49%";
+const MIDDLE_OUTER_R = "63%";
+const OUTER_INNER_R = "66%";
+const OUTER_OUTER_R = "82%";
 
 /** Per-ring base opacity (the fade-from-centre effect).
  *   INNER  = 1.00  (full)
@@ -132,8 +132,8 @@ const RING_OPACITY_OUTER = 0.5;
 /** Per-ring radii as numeric percent (used in the card-position math).
  * Updated to match the second ×1.25 scale so info-cards sit at the
  * right radius relative to the bigger outer ring. */
-const OUTER_OUTER_R_PCT = 0.96;
-const MIDDLE_OUTER_R_PCT = 0.74;
+const OUTER_OUTER_R_PCT = 0.82;
+const MIDDLE_OUTER_R_PCT = 0.63;
 
 /** Padding angle between slices within a ring (deg).
  *   - INNER  : 3° — clearly separated sleeves
