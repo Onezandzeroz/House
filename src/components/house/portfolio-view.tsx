@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { HouseOverview } from "./house-overview";
 import type { HouseOverviewProps } from "./house-overview";
-import { PositionsTable } from "./positions-table";
+import { PositionsCardView } from "./positions-card-view";
 import { LivePriceBadge } from "./live-price-badge";
 
 /**
@@ -71,7 +71,7 @@ export function PortfolioView({
           onTrustReset={onTrustReset}
         />
       </div>
-      <PositionsTable />
+      <PositionsCardView />
     </div>
   );
 }

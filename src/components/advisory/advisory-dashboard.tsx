@@ -13,7 +13,7 @@ import { RegimeBanner } from "./regime-banner";
 import { BankrollSnapshot } from "./bankroll-snapshot";
 import { DryPowderMeter } from "./dry-powder-meter";
 import { SleeveAllocation } from "./sleeve-allocation";
-import { AllocationAdviceTable } from "./allocation-advice-table";
+import { AdviceCardGrid } from "./advice-card";
 import { OpportunitiesList } from "./opportunities-list";
 import { WarningsList } from "./warnings-list";
 import { AdvisorySummary } from "./advisory-summary";
@@ -136,7 +136,7 @@ export function AdvisoryDashboard() {
 
       <SleeveAllocation sleeves={opinion.sleeves} />
 
-      <AllocationAdviceTable
+      <AdviceCardGrid
         advice={opinion.allocationAdvice}
         bookCurrency={BOOK_CURRENCY}
       />
