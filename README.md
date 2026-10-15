@@ -107,36 +107,59 @@ After onboarding: full-screen golden checkmark success animation → lands on Po
 ## Getting Started
 
 ### Prerequisites
-- [Bun](https://bun.sh/) runtime
-- Node.js 18+ (for NextAuth.js compatibility)
+- [Bun](https://bun.sh/) runtime (recommended) **or** Node.js 18+ with npm
+- Works on Windows, macOS, and Linux
 
-### Installation
+### Installation (Windows / macOS / Linux)
+
+The fastest way to get running — the setup script handles `.env`, database,
+seeding, and starts the dev server in one command:
 
 ```bash
 # Clone the repo
 git clone <your-repo-url>
 cd house
 
+# One-command setup + dev server (cross-platform)
+bun run dev:setup
+```
+
+`bun run dev:setup` runs `.zscripts/dev.mjs` which:
+1. Generates `NEXTAUTH_SECRET` (stable across runs)
+2. Writes `.env` with a cross-platform relative `DATABASE_URL`
+3. Installs dependencies (`bun install` or `npm install`)
+4. Runs `prisma generate` + `prisma db push`
+5. Seeds demo data if the DB is empty
+6. Starts the dev server with `--webpack` (Turbopack OOM-kills on this large app)
+
+#### Manual setup (alternative)
+
+```bash
 # Install dependencies
-bun install
+bun install          # or: npm install
 
 # Set up environment
 cp .env.example .env
-# Edit .env — set NEXTAUTH_SECRET to: openssl rand -base64 32
+# Edit .env — set NEXTAUTH_SECRET to a random 32-byte base64 string
+#   (on Windows: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
 
 # Push database schema
-bun run db:push
+bun run db:push      # or: npx prisma db push --accept-data-loss
 
 # Seed demo data (creates demo user + trust + positions + mandate + decisions + snapshots)
-bun prisma/seed.ts
+bun prisma/seed.ts   # or: npx tsx prisma/seed.ts
 ```
 
 ### Running
 
 ```bash
-# Start dev server
-bun run dev
+# Start dev server (cross-platform — no Unix pipes)
+bun run dev          # or: npm run dev
 ```
+
+> **Windows note**: `bun run dev` runs `next dev -p 3000` (no `tee` pipe —
+> that was Unix-only). If you want the webpack variant (more memory-stable
+> on large apps), use `bun run dev:webpack`.
 
 Open `http://localhost:3000` in your browser.
 

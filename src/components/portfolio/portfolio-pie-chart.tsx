@@ -94,21 +94,46 @@ import { PortfolioSummaryStrip } from "./portfolio-summary-strip";
  * Matches `--background` (#060708) per Task 19. */
 const BACKGROUND_HEX = "#060708";
 
-/** Per-ring radii (Task 29 — shrunk from Task 26's 38-58 / 60-80 / 82-95
- * so the info-cards fit OUTSIDE the pie without overflowing the
- * container). The pie is still big — the OUTER ring's outer edge is
- * 65 % of halfSize, so for an 850 px container that's 276 px radius
- * (552 px diameter, ~65 % of the container's smaller dimension). */
-const INNER_INNER_R = "26%";
-const INNER_OUTER_R = "38%";
-const MIDDLE_INNER_R = "40%";
-const MIDDLE_OUTER_R = "52%";
-const OUTER_INNER_R = "54%";
-const OUTER_OUTER_R = "65%";
+/** Light golden outline colour for all ring sections (per eier
+ * direction — replaces the black BACKGROUND_HEX stroke so the slices
+ * are separated by a warm gold hairline instead of a dark gap). The
+ * gold is desaturated + light so it reads as an outline, not a fill. */
+const RING_STROKE_HEX = "#f5d491";
 
-/** Per-ring radii as numeric percent (used in the card-position math). */
-const OUTER_OUTER_R_PCT = 0.65;
-const MIDDLE_OUTER_R_PCT = 0.52;
+/** Per-ring radii — scaled ×1.25 again (second 25 % bump) so the
+ * outer ring's outer edge is ~96 % of halfSize (was 81 %). For an
+ * 850 px container that's ~408 px radius (816 px diameter) — the pie
+ * now fills nearly the full container. Capped at 96 % (not 100 %) so
+ * the outermost ring's stroke + hover-expand don't clip.
+ *
+ * Per-ring fade (per eier direction, inspired by the reference
+ * image): each ring fades 25 % opacity per step from the centre —
+ *   INNER  : 100 % opacity  (fullest, the strategic sleeves)
+ *   MIDDLE :  75 % opacity  (per-asset slices, slightly faded)
+ *   OUTER  :  50 % opacity  (per-venue slices, most faded)
+ * The fade is applied as a base fillOpacity on every Cell; the
+ * existing hover/pin dim logic multiplies on top of it. */
+const INNER_INNER_R = "38%";
+const INNER_OUTER_R = "54%";
+const MIDDLE_INNER_R = "58%";
+const MIDDLE_OUTER_R = "74%";
+const OUTER_INNER_R = "78%";
+const OUTER_OUTER_R = "96%";
+
+/** Per-ring base opacity (the fade-from-centre effect).
+ *   INNER  = 1.00  (full)
+ *   MIDDLE = 0.75  (25 % faded)
+ *   OUTER  = 0.50  (50 % faded — matches the reference image's outer ring)
+ * The hover/pin dim logic multiplies these as the non-focused baseline. */
+const RING_OPACITY_INNER = 1.0;
+const RING_OPACITY_MIDDLE = 0.75;
+const RING_OPACITY_OUTER = 0.5;
+
+/** Per-ring radii as numeric percent (used in the card-position math).
+ * Updated to match the second ×1.25 scale so info-cards sit at the
+ * right radius relative to the bigger outer ring. */
+const OUTER_OUTER_R_PCT = 0.96;
+const MIDDLE_OUTER_R_PCT = 0.74;
 
 /** Padding angle between slices within a ring (deg).
  *   - INNER  : 3° — clearly separated sleeves
@@ -129,11 +154,20 @@ const HOVER_EXPAND_OUTER = 5;
 const DIM_HOVER = 0.4;
 const DIM_PIN = 0.6;
 
-/** Outer-ring fill opacity (sub-shade of parent asset colour). */
-const OUTER_OPACITY_NORMAL = 0.55;
+/** Outer-ring fill opacity — the final per-state opacity values.
+ * The base fade (RING_OPACITY_OUTER = 0.5) is baked into these:
+ *   normal    = 0.50  (the faded baseline — 50 % opacity, matching the
+ *                       reference image's outer ring)
+ *   focused   = 0.85  (hovered/pinned — brightens to nearly full so the
+ *                       trustee can see the focused venue clearly)
+ *   dim-hover = 0.25  (another slice hovered — dimmed below the baseline)
+ *   dim-pin   = 0.35  (another slice pinned — dimmed but less than hover)
+ * The contrast between states is preserved so the hover/pin interaction
+ * still reads clearly despite the lower baseline. */
+const OUTER_OPACITY_NORMAL = 0.5;
 const OUTER_OPACITY_FOCUSED = 0.85;
-const OUTER_OPACITY_HOVER_DIM = 0.3;
-const OUTER_OPACITY_PIN_DIM = 0.45;
+const OUTER_OPACITY_HOVER_DIM = 0.25;
+const OUTER_OPACITY_PIN_DIM = 0.35;
 
 // ---------------------------------------------------------------------------
 // Radial in-slice labels (per eier direction):
@@ -515,19 +549,21 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
     // Card dimensions (thumbnail default — matches InfoCard's thumbnail size).
     const CARD_W = 110;
     const CARD_H = 36;
-    // Cards sit RIGHT BESIDE their slice's outer edge in the slice's
-    // angular direction (per eier direction: "close to the part of the
-    // pie chart they represent"). NOT in side-columns at container edge.
-    // Initial offset is small (~30px); overlap-avoidance below may push
-    // cards further outward when small clustered slices would collide.
-    const BASE_OFFSET = 30;
+    // Cards sit BEYOND the OUTER ring's outer edge (not the middle ring)
+    // so they don't cover the outer ring's in-slice venue labels. The
+    // outer ring's outer edge is at OUTER_OUTER_R_PCT × halfSize; we add
+    // a 24px clearance so the card's pie-facing edge clears the outer
+    // ring's stroke + label text.
+    const OUTER_RING_CLEARANCE = 24;
     const CARD_RADIUS = Math.max(CARD_W, CARD_H) / 2; // ~55 — for overlap calc
     const MIN_CARD_DIST = CARD_W + 12; // min center-to-center distance
 
     // Initial layout: each card placed in its slice's angular direction,
-    // BASE_OFFSET outward from the middle ring's outer edge. Card center
-    // is at (cardX, cardY); card has no fixed column — it sits where its
-    // slice points.
+    // starting BEYOND the outer ring's outer edge + clearance so cards
+    // don't cover the outer ring's in-slice venue labels. Card center
+    // is at (cardX, cardY); offset is mutable (overlap-avoidance below
+    // may push cards further out).
+    const outerRingOuterPx = OUTER_OUTER_R_PCT * halfSize;
     const layout = sorted.map((entry) => {
       const sliceAngleRad = (entry.sliceMidAngle * Math.PI) / 180;
       const sliceMidX = cx + middleRingOuterPx * Math.cos(sliceAngleRad);
@@ -538,9 +574,9 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
         entry.sliceMidAngle > -90 && entry.sliceMidAngle < 90;
       const side: "left" | "right" = isRight ? "right" : "left";
 
-      // Card placed in slice's angular direction, BASE_OFFSET beyond slice edge.
-      // offset is mutable — overlap-avoidance below may push it further out.
-      const cardDist = middleRingOuterPx + BASE_OFFSET;
+      // Card placed in slice's angular direction, starting beyond the
+      // outer ring's outer edge + clearance.
+      const cardDist = outerRingOuterPx + OUTER_RING_CLEARANCE;
       const cardX = cx + cardDist * Math.cos(sliceAngleRad);
       const cardY = cy + cardDist * Math.sin(sliceAngleRad);
 
@@ -564,7 +600,7 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
         cardY,
         cardEdgeX,
         side,
-        offset: BASE_OFFSET,
+        offset: OUTER_RING_CLEARANCE,
       };
     });
 
@@ -577,7 +613,7 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
     // Two passes (forward + backward) catch both top-down and
     // bottom-up collision cascades.
     const recompute = (item: (typeof layout)[number]) => {
-      const cardDist = middleRingOuterPx + item.offset;
+      const cardDist = outerRingOuterPx + item.offset;
       item.cardX = cx + cardDist * Math.cos(item.sliceAngleRad);
       item.cardY = cy + cardDist * Math.sin(item.sliceAngleRad);
       const angleToCenter = Math.atan2(cy - item.cardY, cx - item.cardX);
@@ -705,11 +741,11 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
          * beyond the chart wrapper without being clipped. */}
         <div
           ref={containerRef}
-          className="house-pie-container relative w-full overflow-visible rounded-xl border border-border/60 bg-card/40"
+          className="house-pie-container relative w-full overflow-visible rounded-xl border border-border/60 bg-card/40 my-6"
           style={{
-            height: "calc(100vh - 240px)",
-            minHeight: "360px",
-            maxHeight: "760px",
+            height: "calc(100vh - 120px)",
+            minHeight: "560px",
+            maxHeight: "1000px",
           }}
         >
           {/* Subtle radial glow behind the donut — depth, not noise. */}
@@ -791,8 +827,8 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
                 paddingAngle={PADDING_INNER}
                 startAngle={PIE_START_ANGLE}
                 endAngle={PIE_END_ANGLE}
-                stroke={BACKGROUND_HEX}
-                strokeWidth={3}
+                stroke={RING_STROKE_HEX}
+                strokeWidth={1.125}
                 label={renderInnerRadialLabel}
                 labelLine={false}
                 isAnimationActive
@@ -808,8 +844,8 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
                     <Sector
                       {...props}
                       outerRadius={outerRadius + HOVER_EXPAND_INNER}
-                      stroke={BACKGROUND_HEX}
-                      strokeWidth={3}
+                      stroke={RING_STROKE_HEX}
+                      strokeWidth={1.125}
                       style={{
                         filter:
                           "drop-shadow(0 0 10px rgba(16,185,129,0.45))",
@@ -837,9 +873,9 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
                     <Cell
                       key={datum.category}
                       fill={`url(#${datum.gradientId})`}
-                      fillOpacity={dim ? dimAmount : 1}
-                      stroke={BACKGROUND_HEX}
-                      strokeWidth={3}
+                      fillOpacity={dim ? dimAmount : RING_OPACITY_INNER}
+                      stroke={RING_STROKE_HEX}
+                      strokeWidth={1.125}
                     />
                   );
                 })}
@@ -859,8 +895,8 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
                   paddingAngle={PADDING_MIDDLE}
                   startAngle={PIE_START_ANGLE}
                   endAngle={PIE_END_ANGLE}
-                  stroke={BACKGROUND_HEX}
-                  strokeWidth={2}
+                  stroke={RING_STROKE_HEX}
+                  strokeWidth={1.125}
                   label={renderMiddleRadialLabel}
                   labelLine={false}
                   isAnimationActive
@@ -878,8 +914,8 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
                       <Sector
                         {...props}
                         outerRadius={outerRadius + HOVER_EXPAND_MIDDLE}
-                        stroke={BACKGROUND_HEX}
-                        strokeWidth={2}
+                        stroke={RING_STROKE_HEX}
+                        strokeWidth={1.125}
                         style={{
                           filter:
                             "drop-shadow(0 0 10px rgba(16,185,129,0.45))",
@@ -902,14 +938,15 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
                       hoveredMiddle !== null || pinnedMiddle !== null;
                     const dim = anythingFocused && !isHovered && !isPinned;
                     const dimAmount =
-                      hoveredMiddle !== null ? DIM_HOVER : DIM_PIN;
+                      (hoveredMiddle !== null ? DIM_HOVER : DIM_PIN) *
+                      RING_OPACITY_MIDDLE;
                     return (
                       <Cell
                         key={`${datum.parentCategory}-${datum.assetId}`}
                         fill={`url(#${datum.gradientId})`}
-                        fillOpacity={dim ? dimAmount : 1}
-                        stroke={BACKGROUND_HEX}
-                        strokeWidth={2}
+                        fillOpacity={dim ? dimAmount : RING_OPACITY_MIDDLE}
+                        stroke={RING_STROKE_HEX}
+                        strokeWidth={1.125}
                       />
                     );
                   })}
@@ -931,8 +968,8 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
                   paddingAngle={PADDING_OUTER}
                   startAngle={PIE_START_ANGLE}
                   endAngle={PIE_END_ANGLE}
-                  stroke={BACKGROUND_HEX}
-                  strokeWidth={1.5}
+                  stroke={RING_STROKE_HEX}
+                  strokeWidth={1.125}
                   label={renderOuterRadialLabel}
                   labelLine={false}
                   isAnimationActive
@@ -950,8 +987,8 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
                       <Sector
                         {...props}
                         outerRadius={outerRadius + HOVER_EXPAND_OUTER}
-                        stroke={BACKGROUND_HEX}
-                        strokeWidth={1.5}
+                        stroke={RING_STROKE_HEX}
+                        strokeWidth={1.125}
                         style={{
                           filter:
                             "drop-shadow(0 0 8px rgba(16,185,129,0.4))",
@@ -985,8 +1022,8 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
                         key={`${datum.parentAssetId}-${datum.venueKind}-${datum.venue}-${i}`}
                         fill={datum.parentColor}
                         fillOpacity={opacity}
-                        stroke={BACKGROUND_HEX}
-                        strokeWidth={1.5}
+                        stroke={RING_STROKE_HEX}
+                        strokeWidth={1.125}
                       />
                     );
                   })}
@@ -1071,7 +1108,7 @@ export function PortfolioPieChart(props: PortfolioPieChartProps) {
                     <path
                       d={pathD}
                       stroke={asset.color}
-                      strokeWidth={isHovered ? 2 : 1.5}
+                      strokeWidth={1.125}
                       fill="none"
                       opacity={opacity}
                       strokeLinecap="round"
